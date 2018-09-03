@@ -1,0 +1,30 @@
+sudo: required
+dist: xenial
+# Force travis to use its minimal image with default Python settings
+language: python
+services:
+  - docker
+compiler:
+  - gcc
+
+before_install:
+    - curl $MUJOCO_FOR_LINUX | tar -xz ./mjkey.txt
+    - docker build -t image-under-test .
+
+install:
+  - sudo apt-get install tree
+
+before_script:
+  - echo 'Hello Travis CI before script'
+
+script:
+  - docker run --rm image-under-test
+  - echo 'Docker Image Complete'
+
+deploy:
+  provider: releases
+  api_key:
+  file:
+  skip_cleanup: true
+  on:
+    tags: true
