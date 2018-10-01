@@ -1,3 +1,18 @@
+
+"""
+Created on October 1, 2018
+
+@author: mae-ma
+@attention: fruit game for the safety DRL package using different architectures
+@contact: albus.marcel@gmail.com (Marcel Albus)
+@version: 1.0.0
+
+#############################################################################################
+
+History:
+- v1.0.0: first init
+"""
+
 import os
 from copy import deepcopy
 import pygame
@@ -6,14 +21,24 @@ import time
 # or FruitCollectionLarge or FruitCollectionMini
 from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge
 
+############################
+# architectures
+############################
+from architectures.a3c import AsynchronousAdvantageActorCritic
+from architectures.hra import HybridRewardArchitecture
+############################
+
+############################
 # RGB colors
+############################
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 100, 255)
 WALL = (80, 80, 80)
+############################
 
-class TrainFruitCollection(FruitCollection):
+class FruitCollectionTrain(FruitCollection):
     def init_with_mode(self):
         self.is_ghost = False
         self.is_fruit = True
@@ -59,6 +84,9 @@ class TrainFruitCollection(FruitCollection):
         env.reset()
         env.render()
 
+        a3c = AsynchronousAdvantageActorCritic()
+        hra = HybridRewardArchitecture()
+
         for _ in range(50):
             action = np.random.choice(env.legal_actions)
             obs, r, terminated, info = env.step(action)
@@ -71,6 +99,7 @@ class TrainFruitCollection(FruitCollection):
                 reward = []
                 self.main()
 
+
 if __name__ == '__main__':
-    afc = TrainFruitCollection()
-    afc.main()
+    fct = FruitCollectionTrain()
+    fct.main()

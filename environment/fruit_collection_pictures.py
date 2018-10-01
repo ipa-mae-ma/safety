@@ -4,9 +4,10 @@ import pygame
 import numpy as np
 import click
 
-FRUIT = pygame.image.load(os.path.join('Pictures', 'orange.png'))
-GHOST = pygame.image.load(os.path.join('Pictures', 'ghost.png'))
-PACMAN = pygame.image.load(os.path.join('Pictures', 'pacman.png'))
+PICTURE_FOLDER = 'pictures'
+FRUIT = pygame.image.load(os.path.join(PICTURE_FOLDER, 'orange.png'))
+GHOST = pygame.image.load(os.path.join(PICTURE_FOLDER, 'ghost.png'))
+PACMAN = pygame.image.load(os.path.join(PICTURE_FOLDER, 'pacman.png'))
 # RGB colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
