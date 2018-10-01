@@ -1,4 +1,5 @@
 # Deep Reinforcement Learning for safety in robotics
+![](https://www.travis-ci.com/ipa-mae-ma/safety-drl.svg?branch=train)
 
 ## Architectures
 ### HRA
