@@ -9,10 +9,7 @@ compiler:
 
 env:
   global:
-    - IMAGE=Hello-World
-
-before_install:
-    - docker build -t $IMAGE .
+    - IMAGE=hello-world
 
 install:
   - sudo apt-get install tree

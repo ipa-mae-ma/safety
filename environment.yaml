@@ -1,0 +1,17 @@
+name: safety
+channels:
+  - conda-forge
+  - cogsci
+dependencies:
+    - python>=3.5
+    - ipython
+    - click
+    - numpy
+    - Tensorflow
+    - Theano
+    - pandas
+    - matplotlib
+    - h5py
+    - pip:
+        - pygame
+        - keras==1.2
