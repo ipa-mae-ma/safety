@@ -7,9 +7,13 @@ services:
 compiler:
   - gcc
 
+env:
+  global:
+    - IMAGE=Hello-World
+
 before_install:
     - curl $MUJOCO_FOR_LINUX | tar -xz ./mjkey.txt
-    - docker build -t image-under-test .
+    - docker build -t $IMAGE .
 
 install:
   - sudo apt-get install tree
@@ -18,7 +22,7 @@ before_script:
   - echo 'Hello Travis CI before script'
 
 script:
-  - docker run --rm image-under-test
+  - docker run --rm $IMAGE
   - echo 'Docker Image Complete'
 
 deploy:
