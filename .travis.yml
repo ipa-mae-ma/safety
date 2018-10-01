@@ -12,7 +12,6 @@ env:
     - IMAGE=Hello-World
 
 before_install:
-    - curl $MUJOCO_FOR_LINUX | tar -xz ./mjkey.txt
     - docker build -t $IMAGE .
 
 install:
