@@ -29,9 +29,9 @@ import gym
 from collections import defaultdict
 import random
 env = CrawlingRobotEnv()
-gamma = 0.9
-alpha = 0.1
-eps = 0.5
+GAMMA = 0.9
+ALPHA = 0.1
+EPS = 0.5
 
 # Important to start the class name with "Test"!
 class TestGymEnv:
@@ -74,9 +74,9 @@ class TestGymEnv:
         cur_state = env.reset()
         n = 300000
         for itr in range(n):
-            action = mc.eps_greedy(q_vals, eps, cur_state)
+            action = mc.eps_greedy(q_vals, EPS, cur_state)
             next_state, reward, done, info = env.step(action)
-            mc.q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward)
+            mc.q_learning_update(GAMMA, ALPHA, q_vals, cur_state, action, next_state, reward)
             cur_state = next_state
             if itr % 50000 == 0: # evaluation
                 print('q_vals:', q_vals[cur_state])
