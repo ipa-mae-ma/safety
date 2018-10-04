@@ -13,7 +13,8 @@ History:
 - v1.0.0: first init
 """
 
-class TestIntegration:
+# Important to start the class name with "Test"!
+class TestFunction:
     def test_one(self):
         assert 1 == True
 

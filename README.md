@@ -26,6 +26,10 @@
   - update `.travis.yml`
   - `pytest` $\rightarrow$ easy to use
 
+- [ ] gym environments for architectures:
+  - [ ] frozen lake
+  - [ ] crawler
+
 ## Architectures
 - define functions:
   - [ ] `value iteration`
@@ -53,8 +57,11 @@ all environment information from `fruit_collection_train.py` $\rightarrow$ API t
 
 ## Structure
 The `environment` folder contains the fruit-collection environment game. In `architectures` are the implementations of the chosen architectures stored as one module.
+Folder `ci` stores the `test_integration.py` file which handles all the `pytest` tests to sustain maintainability.
 
 ```text
+ci/
+  └── test_integration.py
 environment/
   ├── architectures/
       ├── a3c.py

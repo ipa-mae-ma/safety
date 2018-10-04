@@ -5,11 +5,15 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 1.0.1
 
 #############################################################################################
 
 History:
+- v1.0.1: add functions:
+        - policy_iteration
+        - compute_qpi
+        - compute_vpi
 - v1.0.0: first init
 """
 
@@ -18,8 +22,11 @@ import numpy as np
 
 def plot_map(Vs_VI, pis_VI):
     """
-    @Vs_VI: list of values for given state
-    @pis_VI: list of action to chose for given policy
+    Inputs:
+        Vs_VI: list of values for given state
+        pis_VI: list of action to chose for given policy
+    Outputs:
+        -
     This illustrates the progress of value iteration.
     Your optimal actions are shown by arrows.
     At the bottom, the value of the different states are plotted.
@@ -86,9 +93,6 @@ def value_iteration(mdp, gamma, nIt):
                 # action $\in$ [0:mdp.nA]
                 # action = [(prob, s', reward), (...), (...)]
                 for prob, next_state, reward in mdp.P[state][action]:  # unzip mdp.P[state][action] = [(p, s', r)]
-                    # print(prob)
-                    # print(next_state)
-                    # print(reward)
                     V_action[action] += prob * (reward + gamma * Vprev[next_state])
             V[state] = np.max(V_action)
 
@@ -106,6 +110,103 @@ def value_iteration(mdp, gamma, nIt):
         Vs.append(V)
         pis.append(pi)
     return Vs, pis
+
+
+def compute_vpi(pi, mdp, gamma):
+    """
+    Inputs:
+        pi: Policy pi
+        mdp: MDP
+        gamma: discount factor
+    Outputs:
+        value_functions
+    computes the state-value function $V^{\pi}$ for an arbitrary policy $\pi$.
+    Recall that $V^{\pi}$ satisfies the following linear equation:
+    $$V^{\pi}(s) = \sum_{s'} P(s,\pi(s),s')[ R(s,\pi(s),s') + \gamma V^{\pi}(s')]$$
+    """
+    # use pi[state] to access the action that's prescribed by this policy
+    # http://aima.cs.berkeley.edu/python/mdp.html
+    # https://web.engr.oregonstate.edu/~afern/classes/cs533/notes/infinite-horizon-MDP.pdf
+    ###########
+    # vectors
+    ###########
+    V = np.zeros((mdp.nS, 1))  # (s, 1)
+    ###########
+    # matrizes
+    # Ps => mdp.P[state][action] = [(p, s1, r), (...), (...)]
+    # Rs => mdp.P[state][action] = [(p, s1, r), (...), (...)]
+    ###########
+    Ps = np.zeros((mdp.nS, mdp.nS))  # (s, s)
+    Rs = np.zeros((mdp.nS, mdp.nS))  # (s, s)
+    for state in range(mdp.nS):
+        action = pi[state]
+        for prob, s1, reward in mdp.P[state][action]:
+            Ps[state, s1] = prob
+            Rs[state, s1] = reward
+    alpha = np.eye(Ps.shape[0]) - Ps * gamma
+    beta = Ps * Rs
+    print(np.linalg.solve(alpha, beta))
+    V = np.linalg.solve(alpha, beta)[:, -1]
+    return V
+
+
+def compute_qpi(vpi, mdp, gamma):
+    """
+    Inputs:
+        vpi: value-function
+        mdp: MDP
+        gamma: discount factor
+    Outputs:
+        state-action-value Q for current "pi"
+    """
+    Qpi = np.zeros([mdp.nS, mdp.nA])
+    for s in range(mdp.nS):
+        for a in range(mdp.nA):
+            for p, s1, r in mdp.P[s][a]:
+                Qpi[s, a] += p * (r + gamma * vpi[s1])
+    return Qpi
+
+
+def policy_iteration(mdp, gamma, nIt):
+    """
+    Inputs:
+        mdp: MDP
+        gamma: discount factor
+        nIt: number of iterations, corresponding to n above
+    Outputs:
+        (value_functions, policies)
+    """
+    Vs = []
+    pis = []
+    pi_prev = np.zeros(mdp.nS, dtype='int')
+    pis.append(pi_prev)
+    for it in range(nIt):
+        # need to compute V^pi for current pi
+        vpi = compute_vpi(pis[-1], mdp, gamma)
+        # need to compute Q^pi which is the state-action values for current pi
+        qpi = compute_qpi(vpi, mdp, gamma)
+        pi = qpi.argmax(axis=1)
+        Vs.append(vpi)
+        pis.append(pi)
+        pi_prev = pi
+    return Vs, pis
+
+
+def q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward):
+    """
+    Inputs:
+        gamma: discount factor
+        alpha: learning rate
+        q_vals: q value table
+        cur_state: current state
+        action: action taken in current state
+        next_state: next state results from taking `action` in `cur_state`
+        reward: reward received from this transition
+
+    Performs in-place update of q_vals table to implement one step of Q-learning
+    """
+    target = reward + gamma * np.max(q_vals[next_state])
+    q_vals[cur_state][action] = (1 - alpha) * q_vals[cur_state][action] + alpha * target
 
 
 def eps_greedy(q_vals, eps, state):
