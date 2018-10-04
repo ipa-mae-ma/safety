@@ -10,7 +10,7 @@ compiler:
 env:
   global:
     - IMAGE=hello-world
-    - GIT_REPO=ipa-mae-ma/safety-drl
+    - GIT_REPO=~/ipa-mae-ma/safety-drl
 
 install:
   - sudo apt-get install tree
