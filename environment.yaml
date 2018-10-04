@@ -14,5 +14,6 @@ dependencies:
     - h5py
     - pytest
     - pip:
+        - gym
         - pygame
         - keras==1.2

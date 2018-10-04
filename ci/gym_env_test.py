@@ -9,6 +9,8 @@ Created on October 4, 2018
 
 #############################################################################################
 
+This class tests the different Q-learning functions with the help of the gym environment
+
 History:
 - v1.0.0: first init
 """
@@ -25,6 +27,8 @@ env = CrawlingRobotEnv()
 
 # Important to start the class name with "Test"!
 class TestGymEnv:
+    # tweaked for testing from the "Deep Reinforcement Learning Bootcamp" by Berkeley
+    # https://sites.google.com/view/deep-rl-bootcamp/lectures
     def test_q_learning_update(self):
         """
         Test for Q-learning update using gym environment "Crawler"

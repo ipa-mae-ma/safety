@@ -9,6 +9,8 @@ Created on October 4, 2018
 
 #############################################################################################
 
+This class is mainly to test if the "pytest" module is working correctly
+
 History:
 - v1.0.0: first init
 """
