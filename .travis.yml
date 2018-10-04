@@ -13,13 +13,18 @@ env:
 
 install:
   - sudo apt-get install tree
+  - wget https://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh -O ~/miniconda.sh
+  - bash ~/miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - conda create env -f environment.yaml
+  - conda activate safety
+  - pip install pytest
 
 before_script:
   - echo 'Hello Travis CI before script'
 
 script:
-  - docker run --rm $IMAGE
-  - echo 'Docker Image Complete'
+  - pytest
 
 deploy:
   provider: releases

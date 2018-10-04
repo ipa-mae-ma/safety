@@ -12,6 +12,7 @@ dependencies:
     - pandas
     - matplotlib
     - h5py
+    - pytest
     - pip:
         - pygame
         - keras==1.2

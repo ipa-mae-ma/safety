@@ -1,4 +1,4 @@
- # Fruit-Collection Environment
+# Fruit-Collection Environment
 This environment provides the game of Fruit-Collection (a fruit-collection and ghost-avoidance game), which is a good testbed for several RL algorithms. We have used different variation of this environment in some of our papers, including:
 
 * https://arxiv.org/abs/1706.04208
@@ -17,7 +17,7 @@ Based on the maze shape, number of ghosts, (fixed or random) position of fruits,
 * click (pip install click)
 * numpy (pip install numpy -- or install Anaconda distribution)
 
-# Getting Started 
+# Getting Started
 Three particular environment are provided out-of-the-box, some of them has been used in previously published research. Nevertheless, making a new version is still very easy and only requires to identify two methods in the superclass (see the example below).
 
 * `mini`: 10 x 10 maze + no ghost + no wall + random selection of 5 fruits from a pre-defined set of 10 possible fruits at each episode + random initial position of the player.
@@ -130,4 +130,3 @@ class MyFruitCollection(FruitCollection):
                 self.active_fruits[idx] = True
                 self.mini_target[self.possible_fruits.index(f)] = True
 ```
-
