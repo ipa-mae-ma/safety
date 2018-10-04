@@ -10,13 +10,14 @@ compiler:
 env:
   global:
     - IMAGE=hello-world
+    - GIT_REPO=ipa-mae-ma/safety-drl
 
 install:
   - sudo apt-get install tree
   - wget https://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh -O ~/miniconda.sh
   - bash ~/miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
-  - conda create env -f environment.yaml
+  - conda create env -f $GIT_REPO/environment.yaml
   - conda activate safety
   - pip install pytest
 
