@@ -11,6 +11,7 @@ env:
   global:
     - IMAGE=hello-world
     - GIT_REPO=~/ipa-mae-ma/safety-drl
+    - CONDA_ENV_NAME=safety
 
 install:
   - sudo apt-get install tree
@@ -26,8 +27,9 @@ install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION -f environment.yaml
-  - source activate test-environment
+
+  - conda env create -q -f environment.yaml
+  - source activate $CONDA_ENV_NAME
   - python setup.py install
   - pip install pytest
 
