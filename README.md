@@ -24,7 +24,7 @@
 ## CI
 - [ ] setup `travis` test for all architectures
   - update `.travis.yml`
-  - `pytest` or `assert`-tests?
+  - `pytest` $\rightarrow$ easy to use
 
 ## Architectures
 - define functions:
