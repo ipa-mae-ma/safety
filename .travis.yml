@@ -2,8 +2,8 @@ sudo: required
 dist: xenial
 # Force travis to use its minimal image with default Python settings
 language: python
-services:
-  - docker
+python:
+  - "3.6"
 compiler:
   - gcc
 
@@ -17,6 +17,8 @@ install:
   - wget https://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh -O ~/miniconda.sh
   - bash ~/miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
+  - tree
+  - pwd
   - conda create env -f $GIT_REPO/environment.yaml
   - conda activate safety
   - pip install pytest
