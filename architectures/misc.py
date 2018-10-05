@@ -23,8 +23,8 @@ import numpy as np
 def plot_map(Vs_VI, pis_VI, env, pdf_name):
     """
     Inputs:
-        Vs_VI: list of values for given state
-        pis_VI: list of action to chose for given policy
+        Vs_VI: np array of values
+        pis_VI: np array of actions
         env: gym environment constructor
         pdf_name: name of the output pdf
     Outputs:
