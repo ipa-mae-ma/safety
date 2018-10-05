@@ -113,7 +113,7 @@ def value_iteration(mdp, gamma, nIt):
 
 
 def compute_vpi(pi, mdp, gamma):
-    """
+    r"""
     Inputs:
         pi: Policy pi
         mdp: MDP
@@ -124,7 +124,7 @@ def compute_vpi(pi, mdp, gamma):
     Recall that $V^{\pi}$ satisfies the following linear equation:
     $$V^{\pi}(s) = \sum_{s'} P(s,\pi(s),s')[ R(s,\pi(s),s') + \gamma V^{\pi}(s')]$$
     """
-    # use pi[state] to access the action that's prescribed by this policy
+	# use pi[state] to access the action that's prescribed by this policy
     # http://aima.cs.berkeley.edu/python/mdp.html
     # https://web.engr.oregonstate.edu/~afern/classes/cs533/notes/infinite-horizon-MDP.pdf
     ###########
@@ -192,7 +192,7 @@ def policy_iteration(mdp, gamma, nIt):
     return Vs, pis
 
 
-def q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward):
+def tabular_q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward):
     """
     Inputs:
         gamma: discount factor

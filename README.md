@@ -3,7 +3,7 @@
 ![](badges/conda_env-safety-blue.svg)
 ![](badges/python-v3.6.6-blue.svg)
 ![](badges/Ubuntu-16.04.svg)
-[![Build Status](https://travis-ci.com/ipa-mae-ma/safety.svg?branch=master)](https://travis-ci.com/ipa-mae-ma/safety) 
+[![Build Status](https://travis-ci.com/ipa-mae-ma/safety.svg?branch=master)](https://travis-ci.com/ipa-mae-ma/safety)
 ![](badges/trousers-shorts-yellow.svg)
 
 ## Architectures
@@ -22,9 +22,9 @@
 # TODO list
 
 ## CI
-- [ ] setup `travis` test for all architectures
-  - update `.travis.yml`
-  - `pytest` $\rightarrow$ easy to use
+- [x] setup `travis` test for all architectures
+  - [x] update `.travis.yml`
+  - [x] `pytest` $\rightarrow$ easy to use
 
 - [ ] gym environments for architectures:
   - [ ] frozen lake
