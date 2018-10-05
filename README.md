@@ -3,7 +3,7 @@
 ![](badges/conda_env-safety-blue.svg)
 ![](badges/python-v3.6.6-blue.svg)
 ![](badges/Ubuntu-16.04.svg)
-![](https://www.travis-ci.com/ipa-mae-ma/safety-drl.svg?branch=train)
+[![Build Status](https://travis-ci.com/ipa-mae-ma/safety.svg?branch=master)](https://travis-ci.com/ipa-mae-ma/safety) 
 ![](badges/trousers-shorts-yellow.svg)
 
 ## Architectures
