@@ -5,13 +5,18 @@ Created on October 4, 2018
 @author: mae-ma
 @attention: tests for continuous integration
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 1.3.1
 
 #############################################################################################
 
 This class tests the different Q-learning functions with the help of the gym environment
 
 History:
+- v1.3.1: print explanation if program is executed
+- v1.3.0:   - tabular q learning crawler env test
+            - value function test
+- v1.2.0: fix import problem
+- v1.1.0: tabular q learning update test
 - v1.0.0: first init
 """
 ###############################
@@ -36,10 +41,9 @@ GAMMA = 0.9
 ALPHA = 0.1
 EPS = 0.5
 
-# Important to start the class name with "Test"!
-
 
 class TestGymEnv:
+    # Important to start the class name with "Test"!
     # tweaked for testing from the "Deep Reinforcement Learning Bootcamp" by Berkeley
     # https://sites.google.com/view/deep-rl-bootcamp/lectures
     def test_tabular_q_learning_update(self):
@@ -60,7 +64,9 @@ class TestGymEnv:
         assert np.isclose(dummy_q[test_state][0], tgt,) == True
 
     def greedy_eval(self, q_vals):
-        """evaluate greedy policy w.r.t current q_vals"""
+        """
+        evaluate greedy policy w.r.t current q_vals
+        """
         test_env = CrawlingRobotEnv(horizon=np.inf)
         prev_state = test_env.reset()
         ret = 0.
@@ -75,6 +81,9 @@ class TestGymEnv:
         return ret / H
 
     def test_crawler_env_tabular_q_learning(self):
+        """
+        test tabular q learning with gym crawler environment
+        """
         q_vals = defaultdict(lambda: np.array([0. for _ in range(env.action_space.n)]))
         cur_state = env.reset()
         n = 300000
@@ -93,6 +102,9 @@ class TestGymEnv:
                 assert np.isclose(self.greedy_eval(q_vals), TARGET) == True
 
     def test_frozen_lake_value_iteration(self):
+        """
+        test value iteration with gym frozen lake environment
+        """
         # setup environment
         env = FrozenLakeEnv()
         GAMMA_VI = 0.95
@@ -102,27 +114,27 @@ class TestGymEnv:
         Vs_VI, pis_VI = mc.value_iteration(mdp, gamma=GAMMA_VI, nIt=20)
         # value function target
         V_TARGET = [0.0,
-                 0.0,
-                 0.0,
-                 0.0,
-                 0.0,
-                 0.0,
-                 0.25355253760000007,
-                 0.3450850036736001,
-                 0.4416517553812481,
-                 0.4782166872659994,
-                 0.5059316882528422,
-                 0.5170370602354525,
-                 0.5243920128825474,
-                 0.5274888052086196,
-                 0.5293922251765532,
-                 0.5302269359874546,
-                 0.5307158047762821,
-                 0.5309372906257446,
-                 0.5310626746211281,
-                 0.5311209619007249,
-                 0.531153142835031,
-                 ]
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.25355253760000007,
+                    0.3450850036736001,
+                    0.4416517553812481,
+                    0.4782166872659994,
+                    0.5059316882528422,
+                    0.5170370602354525,
+                    0.5243920128825474,
+                    0.5274888052086196,
+                    0.5293922251765532,
+                    0.5302269359874546,
+                    0.5307158047762821,
+                    0.5309372906257446,
+                    0.5310626746211281,
+                    0.5311209619007249,
+                    0.531153142835031,
+                    ]
         for i in range(1, len(Vs_VI)):
             # print output if assert fails
             print('Vi==V_TARGET: ', np.isclose(Vs_VI[i][0], V_TARGET[i], rtol=1.e-4))
@@ -134,4 +146,10 @@ class TestGymEnv:
 
 if __name__ == '__main__':
     tge = TestGymEnv()
-    tge.test_frozen_lake_value_iteration()
+    s = 'This package contains all the automated CI tests using "pytest".\nIncluding the following:'
+    functions = [a for a in dir(tge) if not a.startswith('__')]
+    print('–' * len(s.split('\n')[0]))
+    print(s)
+    for func in functions:
+        print('-', func)
+    print('–' * len(s.split('\n')[0]))
