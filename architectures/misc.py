@@ -225,3 +225,8 @@ def eps_greedy(q_vals, eps, state):
     else:
         action = np.argmax(q_vals[state])
     return action
+
+def to_one_hot(x, len):
+    one_hot = np.zeros(len)
+    one_hot[x] = 1
+    return one_hot
