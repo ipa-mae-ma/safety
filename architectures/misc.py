@@ -20,40 +20,46 @@ History:
 import numpy as np
 
 
-def plot_map(Vs_VI, pis_VI):
+def plot_map(Vs_VI, pis_VI, env, pdf_name):
     """
     Inputs:
         Vs_VI: list of values for given state
         pis_VI: list of action to chose for given policy
+        env: gym environment constructor
+        pdf_name: name of the output pdf
     Outputs:
         -
     This illustrates the progress of value iteration.
     Your optimal actions are shown by arrows.
     At the bottom, the value of the different states are plotted.
     """
-    for (V, pi) in zip(Vs_VI[:10], pis_VI[:10]):
-        plt.figure(figsize=(3, 3))
-        plt.imshow(V.reshape(4, 4), cmap='gray', interpolation='none', clim=(0, 1))
-        ax = plt.gca()
-        ax.set_xticks(np.arange(4) - .5)
-        ax.set_yticks(np.arange(4) - .5)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        Y, X = np.mgrid[0:4, 0:4]
-        a2uv = {0: (-1, 0), 1: (0, -1), 2: (1, 0), 3: (-1, 0)}
-        Pi = pi.reshape(4, 4)
-        for y in range(4):
-            for x in range(4):
-                a = Pi[y, x]
-                u, v = a2uv[a]
-                plt.arrow(x, y, u * .3, -v * .3, color='m', head_width=0.1, head_length=0.1)
-                plt.text(x, y, str(env.desc[y, x].item().decode()),
-                         color='g', size=12,  verticalalignment='center',
-                         horizontalalignment='center', fontweight='bold')
-        plt.grid(color='b', lw=2, ls='-')
-    plt.figure()
-    plt.plot(Vs_VI)
-    plt.title("Values of different states")
+    from matplotlib import pyplot as plt
+
+    # for (V, pi) in zip(Vs_VI[:10], pis_VI[:10]):
+    V = Vs_VI[-1]
+    pi = pis_VI[-1]
+    plt.figure(figsize=(3, 3))
+    plt.imshow(V.reshape(4, 4), cmap='gray', interpolation='none', clim=(0, 1))
+    ax = plt.gca()
+    ax.set_xticks(np.arange(4) - .5)
+    ax.set_yticks(np.arange(4) - .5)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    Y, X = np.mgrid[0:4, 0:4]
+    a2uv = {0: (-1, 0), 1: (0, -1), 2: (1, 0), 3: (-1, 0)}
+    Pi = pi.reshape(4, 4)
+    for y in range(4):
+        for x in range(4):
+            a = Pi[y, x]
+            u, v = a2uv[a]
+            plt.arrow(x, y, u * .3, -v * .3, color='m', head_width=0.1, head_length=0.1)
+            plt.text(x, y, str(env.desc[y, x].item().decode()),
+                     color='g', size=12,  verticalalignment='bottom',
+                     horizontalalignment='center', fontweight='bold')
+            plt.text(x, y, str(np.round(V.reshape(4, 4)[y, x], 2)), color='r', size=8,
+                     verticalalignment='top', horizontalalignment='center')
+    plt.grid(color='b', lw=2, ls='-')
+    plt.savefig(pdf_name)
 
 
 def value_iteration(mdp, gamma, nIt):
@@ -124,7 +130,7 @@ def compute_vpi(pi, mdp, gamma):
     Recall that $V^{\pi}$ satisfies the following linear equation:
     $$V^{\pi}(s) = \sum_{s'} P(s,\pi(s),s')[ R(s,\pi(s),s') + \gamma V^{\pi}(s')]$$
     """
-	# use pi[state] to access the action that's prescribed by this policy
+    # use pi[state] to access the action that's prescribed by this policy
     # http://aima.cs.berkeley.edu/python/mdp.html
     # https://web.engr.oregonstate.edu/~afern/classes/cs533/notes/infinite-horizon-MDP.pdf
     ###########
@@ -225,6 +231,7 @@ def eps_greedy(q_vals, eps, state):
     else:
         action = np.argmax(q_vals[state])
     return action
+
 
 def to_one_hot(x, len):
     one_hot = np.zeros(len)
