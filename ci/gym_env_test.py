@@ -5,13 +5,14 @@ Created on October 4, 2018
 @author: mae-ma
 @attention: tests for continuous integration
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.1
+@version: 1.3.2
 
 #############################################################################################
 
 This class tests the different Q-learning functions with the help of the gym environment
 
 History:
+- v1.3.2: use random seed generator for testing
 - v1.3.1: print explanation if program is executed
 - v1.3.0:   - tabular q learning crawler env test
             - value function test
