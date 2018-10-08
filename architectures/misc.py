@@ -19,6 +19,18 @@ History:
 
 import numpy as np
 
+class Font:
+    purple = '\033[95m'
+    cyan = '\033[96m'
+    darkcyan = '\033[36m'
+    blue = '\033[94m'
+    green = '\033[92m'
+    yellow = '\033[93m'
+    red = '\033[91m'
+    bgblue = '\033[44m'
+    bold = '\033[1m'
+    underline = '\033[4m'
+    end = '\033[0m'
 
 def plot_map(Vs_VI, pis_VI, env, pdf_name):
     """
@@ -34,6 +46,8 @@ def plot_map(Vs_VI, pis_VI, env, pdf_name):
     At the bottom, the value of the different states are plotted.
     """
     from matplotlib import pyplot as plt
+
+    # TODO: update plots to support variable grids --> no hardcoded grid
 
     # for (V, pi) in zip(Vs_VI[:10], pis_VI[:10]):
     V = Vs_VI[-1]
@@ -62,7 +76,7 @@ def plot_map(Vs_VI, pis_VI, env, pdf_name):
     plt.savefig(pdf_name)
 
 
-def value_iteration(mdp, gamma, nIt):
+def value_iteration(mdp, gamma, nIt) -> (list, list):
     """
     Inputs:
         mdp: MDP
@@ -214,20 +228,25 @@ def tabular_q_learning_update(gamma, alpha, q_vals, cur_state, action, next_stat
     q_vals[cur_state][action] = (1 - alpha) * q_vals[cur_state][action] + alpha * target
 
 
-def eps_greedy(q_vals, eps, state):
+def eps_greedy(q_vals, eps, state, rng: np.random.seed()) -> int:
     """
     Inputs:
         q_vals: q value tables
         eps: epsilon
         state: current state
+        rng (np.random.seed): random nummber generator
     Outputs:
-        random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
+        action (int): random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
     """
     # you might want to use random.random() to implement random exploration
     #   number of actions can be read off from len(q_vals[state])
     import random
-    if random.random() <= eps:
-        action = random.randint(0, len(q_vals[state]) - 1)
+    if rng.rand() <= eps:
+    # if random.random() <= eps:
+        # np.random(0, 4) -> x \in [0,3]
+        action = rng.randint(0, len(q_vals[state]))
+        # random.randint(0, 4) -> x \in [0,4]
+        # action = random.randint(0, len(q_vals[state]) - 1)
     else:
         action = np.argmax(q_vals[state])
     return action
