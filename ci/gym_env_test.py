@@ -87,8 +87,11 @@ class TestGymEnv:
         q_vals = defaultdict(lambda: np.array([0. for _ in range(env.action_space.n)]))
         cur_state = env.reset()
         n = 300000
+        # random seed for testing
+        nprs = np.random.RandomState
+        rng = nprs(42)
         for itr in range(n):
-            action = mc.eps_greedy(q_vals, EPS, cur_state)
+            action = mc.eps_greedy(q_vals, EPS, cur_state, rng)
             next_state, reward, done, info = env.step(action)
             mc.tabular_q_learning_update(GAMMA, ALPHA, q_vals, cur_state, action, next_state, reward)
             cur_state = next_state
