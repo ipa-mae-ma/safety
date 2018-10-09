@@ -23,6 +23,10 @@ epsilon_min: 0.1
 epsilon_decay: 0.01
 test_epsilon: 0.0
 
+
+################################
+# training
+################################
 rendering: False
 nb_experiments: 1
 random_seed: 1234
