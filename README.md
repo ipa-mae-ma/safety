@@ -26,18 +26,27 @@
   - [x] update `.travis.yml`
   - [x] `pytest` $\rightarrow$ easy to use
 
-- [ ] gym environments for architectures:
-  - [ ] frozen lake
-  - [ ] crawler
+- [x] gym environments for architectures:
+  - [x] frozen lake
+  - [x] crawler
+
 
 ## Architectures
 - define functions:
-  - [ ] `value iteration`
+  - [x] `value iteration`
   - [ ] `policy iteration`
-  - [ ] `q-learning`-function
+  - [x] `q-learning`-function
   - [ ] `deep q`-function
   - [ ] `visualization`-function
     - `matplotlib`?
+
+### DQN
+
+- [ ] use `pickle` to save weights
+  - [ ] include `overwrite` parameter
+- [ ] use `results` folder
+- [ ] implement `warmstart` functionality
+- [ ]
 
 - define MDP to pass to architectures:
   - [ ] states
@@ -61,7 +70,12 @@ Folder `ci` stores the `test_integration.py` file which handles all the `pytest`
 
 ```text
 ci/
-  └── test_integration.py
+  ├── crawler_env.py
+  ├── discrete_env.py
+  ├── frozen_lake.py
+  ├── function_test.py
+  ├── gym_env_test.py
+  └── __init__.py
 environment/
   ├── architectures/
       ├── a3c.py
