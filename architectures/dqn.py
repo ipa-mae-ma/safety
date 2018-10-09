@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.1.2
 
 #############################################################################################
 
 History:
+- v1.1.2: rename functions
+- v1.1.1: add logger and target_model
 - v1.1.0: add functions
 - v1.0.0: first init
 """
@@ -27,13 +29,15 @@ from tensorflow import keras
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
 from architectures.mdp import MDP
+from architectures.misc import Font
 # from architectures.wrappers import NoopResetEnv, EpisodicLifeEnv
 
-
+# TODO: implement preprocessing function for visual input
+# TODO: implement screen capture for fruit game -> visuals from pygame? 
 
 class DeepQNetwork:
     def __init__(self,
-                 mdp: MDP,
+                 env: env,
                  input_size: tuple=(84, 84, 4),
                  output_size: int=4,
                  name: str='DQN') -> None:
@@ -45,7 +49,7 @@ class DeepQNetwork:
 
         Input:
             input_size (int): Input dimension
-            mdp (MDP): markov decision process class
+            env (env): environment class
             output_size (int): Output dimension
             name (str, optional): TF Graph will be built under this name
         """
@@ -66,12 +70,22 @@ class DeepQNetwork:
         self.epsilon_min = self.params['epsilon_min']
         self.epsilon_decay = self.params['epsilon_decay']
         self.replay_buffer = ReplayBuffer(self.params['replay_memory_size'])
+        self.csv_logger = keras.CSVLogger('training_log_DQN.csv')
+        self.episode_max_len = self.params['episode_max_len']
 
-        self.net_name = name
+        self.fps = 0
+        self.episode_num = 0
+        self.last_episode_steps = 0
+        self.total_training_steps = 0
+        self.score_agent = 0
+        self.eval_steps = []
+        self.eval_scores = []
+        self.env = env
 
-        self.model = self._build_network()
+        self.name = name
+        self.model, self.target_model = self._build_network()
 
-    def _build_network(self, l_rate=self.l_rate) -> keras.Sequential:
+    def _build_network(self, l_rate=self.l_rate) -> (keras.models.Sequential, keras.models.Sequential):
         """
         build network with DQN parameters
         """
@@ -94,8 +108,25 @@ class DeepQNetwork:
                                                             epsilon=self.params['min_squared_gradient']),
               loss='categorical_crossentropy',
               metrics=['accuracy'])
-        return model
 
+        target_model=keras.clone_model(model)
+        return model, target_model
+
+
+    def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
+        """
+        train DQN algorithm with replay buffer and minibatch
+        """
+        while self.episode_num < total_eps:
+            print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
+                  end='\n')
+            if is_learning:
+                self.replay(batch_size: int=self.minibatch_size)
+                self.episode_num += 1
+
+            if is_testing:
+                # TODO: implement testing output
+                pass
 
     def act(self, state: int) -> action:
         """
@@ -130,12 +161,24 @@ class DeepQNetwork:
         minibatch=self.replay_buffer.sample(batch_size=batch_size)
         # all of type np.array
         for state, action, reward, next_state, done in minibatch:
-            target=reward
+            # set the target for DQN
+            y_target=reward
             if not done:
-                target=reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+                # self.model.predict(s') -> Q(s',a')
+                y_target=reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+            # create predictet target function
             target_f=self.model.predict(state)
-            target_f[0][action]=target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+            # self.model.predict(s) -> Q(s,a)
+            target_f[0][action]=y_target
+            # fit method feeds input and output pairs to the model
+            # then the model will train on those data to approximate the output
+            # based on the input
+            # [src](https://keon.io/deep-q-learning/)
+            input=state
+            output=target_f
+            self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
+            # self.model.fit(state, target_f, epochs=1, verbose=0)
+            # TODO: return mean score and mean steps
         # decay epsilon
         if self.epsilon > self.epsilon_min:
             self.epsilon *= - self.epsilon_decay
