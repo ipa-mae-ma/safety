@@ -61,7 +61,7 @@
   - gamma
 
 ## Interaction
-all environment information from `fruit_collection_train.py` $\rightarrow$ API to interact with architectures.
+all environment information from `fruit_collection_train.py`: API to interact with architectures.
 
 
 ## Structure
