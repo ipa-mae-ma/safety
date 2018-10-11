@@ -33,7 +33,8 @@ from architectures.misc import Font
 # from architectures.wrappers import NoopResetEnv, EpisodicLifeEnv
 
 # TODO: implement preprocessing function for visual input
-# TODO: implement screen capture for fruit game -> visuals from pygame? 
+# TODO: implement screen capture for fruit game -> visuals from pygame?
+
 
 class DeepQNetwork:
     def __init__(self,
@@ -92,15 +93,15 @@ class DeepQNetwork:
         model = keras.Sequential()
         # first hidden layer
         model.add(keras.layers.Conv2D(input_shape=self.input_size, filters=32,
-                                      kernel_size=(8, 8), strides=4, activation='relu')
+                                      kernel_size=(8, 8), strides=4, activation='relu'))
         # second hidden layer
-        model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu')
+        model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
         # third hidden layer
-        model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu')
+        model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
         # fourth hidden layer
-        model.add(keras.layers.Dense(512, activation='relu')
+        model.add(keras.layers.Dense(512, activation='relu'))
         # output layer
-        model.add(keras.layers.Dense(self.output_size, activation='relu')
+        model.add(keras.layers.Dense(self.output_size, activation='relu'))
         # compile model
         model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                             decay=0.9,
