@@ -24,7 +24,7 @@
 ## CI
 - [x] setup `travis` test for all architectures
   - [x] update `.travis.yml`
-  - [x] `pytest` $\rightarrow$ easy to use
+  - [x] `pytest`: easy to use
 
 - [x] gym environments for architectures:
   - [x] frozen lake
