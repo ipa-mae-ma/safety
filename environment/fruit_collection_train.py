@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 1.0.1
 
 #############################################################################################
 
 History:
+- v1.0.1: extend path to find other packages
 - v1.0.0: first init
 """
 
@@ -21,6 +22,12 @@ import time
 # or FruitCollectionLarge or FruitCollectionMini
 from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge
 
+###############################
+# Necessary to import packages from different folders
+###############################
+import sys
+import os
+sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 # architectures
 ############################
@@ -87,17 +94,36 @@ class FruitCollectionTrain(FruitCollection):
         a3c = AsynchronousAdvantageActorCritic()
         hra = HybridRewardArchitecture()
 
-        for _ in range(50):
+        for _ in range(500):
             action = np.random.choice(env.legal_actions)
             obs, r, terminated, info = env.step(action)
             env.render()
+
+            print("\033[2J\033[H\033[2J", end="")
+            print()
+            print('pos: ', env.player_pos_x, env.player_pos_y)
+            print('reward: ', r)
+            print('state:')
+            frame = np.zeros(shape=obs[0,...].shape, dtype=np.float32)
+            print('─' * 30)
+            # wall
+            frame[ obs[0,...] != 0] = env.rgb2grayscale(WALL, normalization=False)
+            # fruit
+            frame[ obs[1,...] != 0] = env.rgb2grayscale(BLUE, normalization=False)
+            # pacman
+            frame[ obs[2,...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
+            # ghosts
+            frame[ obs[3,...] != 0] = env.rgb2grayscale(RED, normalization=False)
+            print(frame)
+            print('─' * 30)
+
             if terminated == False:
                 reward.append(r)
             time.sleep(.01)
             if terminated == True:
                 print(sum(reward))
                 reward = []
-                self.main()
+                # self.main()
 
 
 if __name__ == '__main__':

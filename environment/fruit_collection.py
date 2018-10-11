@@ -436,6 +436,13 @@ class FruitCollection(object):
         else:
             raise ValueError('env.rendering is False and/or environment has not been reset.')
 
+    def rgb2grayscale(self, color, normalization=False):
+        # using formula Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
+        if normalization:
+            return (0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]) / 255
+        else:
+            return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+
 
 class FruitCollectionSmall(FruitCollection):
     def init_with_mode(self):
@@ -636,6 +643,21 @@ def test(mode, fruit, ghost, save):
             print('─' * 30)
             print(obs)
             print('─' * 30)
+            frame = np.zeros(shape=obs[0,...].shape, dtype=np.float32)
+            # wall
+            frame[ obs[0,...] != 0] = env.rgb2grayscale(WALL, normalization=False)
+            # fruit
+            frame[ obs[1,...] != 0] = env.rgb2grayscale(BLUE, normalization=False)
+            # pacman
+            frame[ obs[2,...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
+            # ghosts
+            frame[ obs[3,...] != 0] = env.rgb2grayscale(RED, normalization=False)
+            print(frame)
+            np.save('frame.npy', frame)
+            # print(np.add(obs[0, ...], obs[1, ...]))
+            print('─' * 30)
+            # capture screen as image
+            # pygame.image.save(env.screen, 'screen.jpg')
 
 
 if __name__ == '__main__':
