@@ -7,7 +7,7 @@ dependencies:
     - ipython
     - click
     - numpy
-    - Tensorflow
+    - tensorflow>=1.11
     - Theano
     - pandas
     - matplotlib
