@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.1
+@version: 1.0.2
 
 #############################################################################################
 
 History:
+- v1.0.2: first dqn test
 - v1.0.1: extend path to find other packages
 - v1.0.0: first init
 """
@@ -33,6 +34,7 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 from architectures.a3c import AsynchronousAdvantageActorCritic
 from architectures.hra import HybridRewardArchitecture
+from architectures.dqn import DeepQNetwork
 ############################
 
 ############################
@@ -44,6 +46,7 @@ RED = (255, 0, 0)
 BLUE = (0, 100, 255)
 WALL = (80, 80, 80)
 ############################
+
 
 class FruitCollectionTrain(FruitCollection):
     def init_with_mode(self):
@@ -87,16 +90,27 @@ class FruitCollectionTrain(FruitCollection):
 
     def main(self):
         reward = []
-        env = FruitCollectionLarge(rendering=True, lives=1, is_fruit=True, is_ghost=True, image_saving=False)
+        env = FruitCollectionSmall(rendering=True, lives=1, is_fruit=True, is_ghost=True, image_saving=False)
         env.reset()
         env.render()
 
+        # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
+        input_dim = (11, 11, 1) # (img_height, img_width, n_channels)
+        dqn = DeepQNetwork(env=env, input_size=input_dim, output_size=4, name='DQN')
         a3c = AsynchronousAdvantageActorCritic()
         hra = HybridRewardArchitecture()
+        states = []
 
-        for _ in range(500):
+        for t in range(500):
             action = np.random.choice(env.legal_actions)
             obs, r, terminated, info = env.step(action)
+            state = obs[2, ...]
+            state = state.reshape(input_dim)
+            states.append(state)
+            if t >= 1:
+                state_t = states[-2]
+                state_t1 = states[-1]
+                dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
             env.render()
 
             print("\033[2J\033[H\033[2J", end="")
@@ -104,22 +118,22 @@ class FruitCollectionTrain(FruitCollection):
             print('pos: ', env.player_pos_x, env.player_pos_y)
             print('reward: ', r)
             print('state:')
-            frame = np.zeros(shape=obs[0,...].shape, dtype=np.float32)
+            frame = np.zeros(shape=obs[0, ...].shape, dtype=np.float32)
             print('─' * 30)
             # wall
-            frame[ obs[0,...] != 0] = env.rgb2grayscale(WALL, normalization=False)
+            frame[obs[0, ...] != 0] = env.rgb2grayscale(WALL, normalization=False)
             # fruit
-            frame[ obs[1,...] != 0] = env.rgb2grayscale(BLUE, normalization=False)
+            frame[obs[1, ...] != 0] = env.rgb2grayscale(BLUE, normalization=False)
             # pacman
-            frame[ obs[2,...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
+            frame[obs[2, ...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
             # ghosts
-            frame[ obs[3,...] != 0] = env.rgb2grayscale(RED, normalization=False)
+            frame[obs[3, ...] != 0] = env.rgb2grayscale(RED, normalization=False)
             print(frame)
             print('─' * 30)
 
             if terminated == False:
                 reward.append(r)
-            time.sleep(.01)
+            time.sleep(1)
             if terminated == True:
                 print(sum(reward))
                 reward = []
