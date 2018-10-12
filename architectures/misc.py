@@ -10,6 +10,8 @@ Created on October 1, 2018
 #############################################################################################
 
 History:
+- v1.0.2: add function:
+        - overblow to increase the size of an array for a factor
 - v1.0.1: add functions:
         - policy_iteration
         - compute_qpi
@@ -256,3 +258,28 @@ def to_one_hot(x, len):
     one_hot = np.zeros(len)
     one_hot[x] = 1
     return one_hot
+
+def overblow(input_array, factor: int) -> np.array:
+    """
+    increase the size of the input array by a factor
+    Input:
+        input_array (np.array): array to increase
+        factor (int): factor with which the input array is increased
+    Output:
+        out (np.array): increased array with out.shape = input_dim.shape * factor
+    """
+    output_r = input_array.shape[0] * factor
+    output_c = input_array.shape[1] * factor
+    filter = np.ones((factor, factor))
+    out = np.array([_ for _ in range(output_r * output_c)]).reshape(output_r, output_c)
+    print(input_array)
+    row_i = 0
+    for rows in range(input_array.shape[0]):
+        row_j = 0
+        for columns in range(input_array.shape[1]):
+            v = np.multiply(input_array[rows, columns], filter)
+            # print(v)
+            out[row_i: row_i + factor, row_j: row_j + factor] = v
+            row_j += factor
+        row_i += factor
+    return out
