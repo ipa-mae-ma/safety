@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.2
+@version: 1.1.0
 
 #############################################################################################
 
 History:
+- v1.1.0: dqn input fixed -> working, overblow input image
 - v1.0.2: first dqn test
 - v1.0.1: extend path to find other packages
 - v1.0.0: first init
@@ -35,6 +36,7 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 from architectures.a3c import AsynchronousAdvantageActorCritic
 from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
+import architectures.misc as misc
 ############################
 
 ############################
@@ -95,7 +97,8 @@ class FruitCollectionTrain(FruitCollection):
         env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
-        input_dim = (11, 11, 1) # (img_height, img_width, n_channels)
+        input_dim = (88, 88, 1) # (img_height, img_width, n_channels)
+        mc = misc
         dqn = DeepQNetwork(env=env, input_size=input_dim, output_size=4, name='DQN')
         a3c = AsynchronousAdvantageActorCritic()
         hra = HybridRewardArchitecture()
@@ -104,22 +107,28 @@ class FruitCollectionTrain(FruitCollection):
         for t in range(500):
             action = np.random.choice(env.legal_actions)
             obs, r, terminated, info = env.step(action)
-            state = obs[2, ...]
-            state = state.reshape(input_dim)
+            state_low = obs[2, ...]
+            state_high = mc.overblow(input_array=state_low, factor=8)
+            state = state_high.reshape(input_dim)
             states.append(state)
             if t >= 1:
                 state_t = states[-2]
                 state_t1 = states[-1]
                 dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
             env.render()
+            if t == 50:
+                dqn.replay()
+                dqn.save_buffer(path='replay_buffer.pkl')
+                dqn.save_weights(path='weights.h5')
 
             print("\033[2J\033[H\033[2J", end="")
             print()
             print('pos: ', env.player_pos_x, env.player_pos_y)
             print('reward: ', r)
             print('state:')
-            frame = np.zeros(shape=obs[0, ...].shape, dtype=np.float32)
+            print(state_low)
             print('─' * 30)
+            frame = np.zeros(shape=obs[0, ...].shape, dtype=np.float32)
             # wall
             frame[obs[0, ...] != 0] = env.rgb2grayscale(WALL, normalization=False)
             # fruit
@@ -128,12 +137,11 @@ class FruitCollectionTrain(FruitCollection):
             frame[obs[2, ...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
             # ghosts
             frame[obs[3, ...] != 0] = env.rgb2grayscale(RED, normalization=False)
-            print(frame)
             print('─' * 30)
 
             if terminated == False:
                 reward.append(r)
-            time.sleep(1)
+            time.sleep(.01)
             if terminated == True:
                 print(sum(reward))
                 reward = []
