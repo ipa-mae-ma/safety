@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.2
+@version: 1.2.3
 
 #############################################################################################
 
 History:
+- v1.2.3: add some documentation and new function to update target network
 - v1.2.2: update 'act' func to work with eps_greedy
 - v1.2.1: rename 'replay' to '_replay' and tweak function to input
 - v1.2.0: add 'flatten' layer to neural net
@@ -103,7 +104,7 @@ class DeepQNetwork:
         model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
         # third hidden layer
         model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
-        # flatten conv output
+        # flatten conv output so last output is of shape (batchsize, output_size)
         model.add(keras.layers.Flatten())
         # fourth hidden layer
         model.add(keras.layers.Dense(512, activation='relu'))
@@ -120,21 +121,31 @@ class DeepQNetwork:
         target_model = keras.models.clone_model(model)
         return model, target_model
 
-    def do_training(self, total_eps=20, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
+    def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         """
         train DQN algorithm with replay buffer and minibatch
         """
+        pbar = tqdm.tqdm(total=total_eps, unit='Episodes', ncols=100)
         while self.episode_num < total_eps:
-            print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
-               end='\n')
+            # print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
+            #    end='\n')
             if is_learning:
+                pbar.update(1)
                 self._replay(batch_size=self.minibatch_size)
                 self.episode_num += 1
 
             if is_testing:
                 # TODO: implement testing output
                 pass
+        pbar.close()
         self.episode_num = 0
+
+
+    def update_target_modle(self) -> None:
+        """
+        update the target model with the weights from the trained model
+        """
+        self.target_model.set_weights(self.model.get_weights())
 
     def act(self, state: int) -> float:
         """
@@ -160,7 +171,7 @@ class DeepQNetwork:
             state (np.array): numpy array of current state
             action (int): scalar value for chosen action
             reward (int): scalar value for received reward
-            next_state (int): scalar value of next state
+            next_state (np.array): numpy array of next state
             done (int): scalar value if episode is finished
         """
         self.replay_buffer.add(obs_t=state, act=action, rew=reward, obs_tp1=next_state, done=done)
@@ -196,8 +207,10 @@ class DeepQNetwork:
         i = 0
         for sample in batch:
             state = state_a[i, ...] # x[:,np.newaxis]
+            # add new axis to increase the fit the expeted size for the model
             state = state[np.newaxis, ...]
             next_state = next_state_a[i, ...]
+            # add new axis to increase the fit the expeted size for the model
             next_state = next_state[np.newaxis, ...]
             action = sample[ACTION]
             reward = sample[REWARD]
@@ -217,7 +230,7 @@ class DeepQNetwork:
             # [src](https://keon.io/deep-q-learning/)
             input = state
             output = target_f
-            self.model.fit(input, output, epochs=2, verbose=0, callbacks=[self.csv_logger])
+            self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
             # self.model.fit(state, target_f, epochs=1, verbose=0)
             # TODO: return mean score and mean steps
             i += 1
