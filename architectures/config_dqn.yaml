@@ -20,7 +20,7 @@ min_squared_gradient: 0.01
 annealing: True
 epsilon: 1.0
 epsilon_min: 0.1
-epsilon_decay: 0.01
+epsilon_decay: 0.001
 test_epsilon: 0.0
 
 
