@@ -36,17 +36,17 @@
   - [x] `value iteration`
   - [ ] `policy iteration`
   - [x] `q-learning`-function
-  - [ ] `deep q`-function
+  - [x] `deep q`-function
   - [ ] `visualization`-function
     - `matplotlib`?
 
 ### DQN
 
-- [ ] use `pickle` to save weights
+- [x] use `pickle` to save weights
   - [ ] include `overwrite` parameter
 - [ ] use `results` folder
 - [ ] implement `warmstart` functionality
-- [ ]
+- [ ] 
 
 - define MDP to pass to architectures:
   - [ ] states
