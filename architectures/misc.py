@@ -5,11 +5,16 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.1
+@version: 1.1.0
 
 #############################################################################################
 
 History:
+- v1.1.0: update:
+        - 'eps_greedy' function for output of neural net
+        - add new funtions:
+            - 'rgb2grayscale' to generate a grayscale int values from RGB tuple
+            - 'make_frame' to stack observations to input frame for NN
 - v1.0.2: add function:
         - overblow to increase the size of an array for a factor
 - v1.0.1: add functions:
@@ -230,27 +235,26 @@ def tabular_q_learning_update(gamma, alpha, q_vals, cur_state, action, next_stat
     q_vals[cur_state][action] = (1 - alpha) * q_vals[cur_state][action] + alpha * target
 
 
-def eps_greedy(q_vals, eps, state, rng: np.random.seed()) -> int:
+def eps_greedy(q_vals, eps, rng: np.random.seed()) -> int:
     """
     Inputs:
         q_vals: q value tables
         eps: epsilon
-        state: current state
         rng (np.random.seed): random nummber generator
     Outputs:
         action (int): random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
     """
     # you might want to use random.random() to implement random exploration
     #   number of actions can be read off from len(q_vals[state])
-    import random
+    # import random
     if rng.rand() <= eps:
     # if random.random() <= eps:
         # np.random(0, 4) -> x \in [0,3]
-        action = rng.randint(0, len(q_vals[state]))
+        action = rng.randint(0, len(q_vals))
         # random.randint(0, 4) -> x \in [0,4]
         # action = random.randint(0, len(q_vals[state]) - 1)
     else:
-        action = np.argmax(q_vals[state])
+        action = np.argmax(q_vals)
     return action
 
 
@@ -272,7 +276,6 @@ def overblow(input_array, factor: int) -> np.array:
     output_c = input_array.shape[1] * factor
     filter = np.ones((factor, factor))
     out = np.array([_ for _ in range(output_r * output_c)]).reshape(output_r, output_c)
-    print(input_array)
     row_i = 0
     for rows in range(input_array.shape[0]):
         row_j = 0
@@ -283,3 +286,44 @@ def overblow(input_array, factor: int) -> np.array:
             row_j += factor
         row_i += factor
     return out
+
+
+def rgb2grayscale(color, normalization=False):
+    """
+    returns the grayscale value for a RGB color tuple
+    using formula Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
+    """
+    if normalization:
+        return (0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]) / 255
+    else:
+        return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+
+
+
+def make_frame(observation, do_overblow=True, overblow_factor=8):
+    """
+    make grayscale frame out of the observation channels
+    Input:
+        observation (np.array): observation frame of size (4,...)
+        overblow (bool): should the output frame be overblown or not
+        overblow_factor (int): factor for change of dimensions
+    Output:
+        frame (np.array): grayscale frame array with dim (observation.shape, 1)
+    """
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    RED = (255, 0, 0)
+    BLUE = (0, 100, 255)
+    WALL = (80, 80, 80)
+    frame = np.zeros(shape=observation[0, ...].shape, dtype=np.float32)
+    # wall
+    frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=False)
+    # fruit
+    frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=False)
+    # pacman
+    frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=False)
+    # ghosts
+    frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=False)
+    if do_overblow:
+        frame = overblow(input_array=frame, factor=overblow_factor)
+    return frame[..., np.newaxis]
