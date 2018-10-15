@@ -5,13 +5,14 @@ Created on October 4, 2018
 @author: mae-ma
 @attention: tests for continuous integration
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.2
+@version: 1.3.3
 
 #############################################################################################
 
 This class tests the different Q-learning functions with the help of the gym environment
 
 History:
+- v1.3.3: update for 'eps_greedy' function test
 - v1.3.2: use random seed generator for testing
 - v1.3.1: print explanation if program is executed
 - v1.3.0:   - tabular q learning crawler env test
@@ -87,12 +88,12 @@ class TestGymEnv:
         """
         q_vals = defaultdict(lambda: np.array([0. for _ in range(env.action_space.n)]))
         cur_state = env.reset()
-        n = 300000
+        n = 100000
         # random seed for testing
         nprs = np.random.RandomState
         rng = nprs(42)
         for itr in range(n):
-            action = mc.eps_greedy(q_vals, EPS, cur_state, rng)
+            action = mc.eps_greedy(q_vals[-1], EPS, rng)
             next_state, reward, done, info = env.step(action)
             mc.tabular_q_learning_update(GAMMA, ALPHA, q_vals, cur_state, action, next_state, reward)
             cur_state = next_state
@@ -101,7 +102,8 @@ class TestGymEnv:
                 print("Itr %i # Average speed: %.6f" % (itr, self.greedy_eval(q_vals)))
             if itr == n - 1:
                 # target from UC berkeley bootcamp
-                TARGET = 3.368062
+                # TARGET_OLD = 3.368062 # legacy
+                TARGET = 1.541561
                 print("Itr {} # Average speed: {:.6f}".format(itr, self.greedy_eval(q_vals)))
                 assert np.isclose(self.greedy_eval(q_vals), TARGET) == True
 
