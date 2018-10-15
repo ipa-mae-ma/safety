@@ -356,7 +356,8 @@ class FruitCollection(object):
     def step(self, action):
         # actions: [0, 1, 2, 3] == [up, down, left, right]
         if self.game_over:
-            raise ValueError('Environment has already been terminated.')
+            self.reset()
+            # raise ValueError('Environment has already been terminated.')
         if self.step_id >= self.game_length - 1:
             self.game_over = True
             if self.state_mode == 'mini':
@@ -436,12 +437,6 @@ class FruitCollection(object):
         else:
             raise ValueError('env.rendering is False and/or environment has not been reset.')
 
-    def rgb2grayscale(self, color, normalization=False):
-        # using formula Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
-        if normalization:
-            return (0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]) / 255
-        else:
-            return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
 
 
 class FruitCollectionSmall(FruitCollection):
