@@ -2,15 +2,19 @@
 # DQN from 'Human-level control through deep reinforcement learning' by Mnih et al. 2015
 ################################
 minibatch_size: 32
-replay_memory_size: 1.0e6
-update_freq: 10000
+# DQN size
+# replay_memory_size: 1.0e6
+# HRA size
+replay_memory_size: 10000
+update_freq: 100
 gamma: 0.99
 
 ################################
 # RMSprop
 ################################
 # learning_rate: 0.00025
-learning_rate: 0.025
+# lr from HRA
+learning_rate: 0.001
 gradient_momentum: 0.95
 squared_gradient_momentum: 0.95
 min_squared_gradient: 0.01
@@ -21,7 +25,7 @@ min_squared_gradient: 0.01
 annealing: True
 epsilon: 1.0
 epsilon_min: 0.1
-epsilon_decay: 0.01
+epsilon_decay: 0.00001
 test_epsilon: 0.0
 
 
