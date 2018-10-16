@@ -56,7 +56,7 @@ np.set_printoptions(threshold=np.nan)
 
 class FruitCollectionTrain(FruitCollection):
     def __init__(self):
-        self.env = FruitCollectionSmall(rendering=False, lives=1, is_fruit=True, is_ghost=True, image_saving=False)
+        self.env = FruitCollectionSmall(rendering=False, lives=10, is_fruit=True, is_ghost=False, image_saving=False)
         # self.env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
@@ -113,8 +113,11 @@ class FruitCollectionTrain(FruitCollection):
             ep_reward = []
             self.env.reset()
             rew = 0
+            framerate = 100
+            sleep_sec = 1 / framerate
 
             for t in range(self.dqn.episode_max_len):
+                time.sleep(sleep_sec)
                 if t == 0:
                     action = np.random.choice(self.env.legal_actions)
                 else:
@@ -151,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
                     self.dqn.save_buffer(path='replay_buffer.pkl')
                     self.dqn.save_weights(path='weights.h5')
                     self.dqn.update_target_model()
-                    print('episode: {}/{}, score: {}'.format(e, self.dqn.episode_max_len, rew))
+                    print('episode: {}/{}, score: {}, eps: {:.3f}'.format(e, self.dqn.episode_max_len, rew, self.dqn.epsilon))
                     reward.append(rew)
                     rew = 0
                     with open('reward.yml', 'w') as f:
