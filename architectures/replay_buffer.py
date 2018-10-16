@@ -26,7 +26,7 @@ class ReplayBuffer(object):
         :param size: Maximum size of the replay buffer.
         """
         self._buffer = []
-        self._max_size = max_size
+        self._max_size = int(max_size)
         # counting variable
         self._idx = 0
 
