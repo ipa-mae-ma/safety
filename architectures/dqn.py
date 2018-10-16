@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.3
+@version: 1.2.4
 
 #############################################################################################
 
 History:
+- v1.2.4: use target model
 - v1.2.3: add some documentation and new function to update target network
 - v1.2.2: update 'act' func to work with eps_greedy
 - v1.2.1: rename 'replay' to '_replay' and tweak function to input
@@ -82,6 +83,7 @@ class DeepQNetwork:
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
         self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv')
         self.episode_max_len = self.params['episode_max_len']
+        self.total_eps = self.params['total_eps']
 
         self.fps = 0
         self.episode_num = 0
@@ -144,7 +146,7 @@ class DeepQNetwork:
         self.episode_num = 0
 
 
-    def update_target_modle(self) -> None:
+    def update_target_model(self) -> None:
         """
         update the target model with the weights from the trained model
         """
@@ -222,17 +224,18 @@ class DeepQNetwork:
             y_target = reward
             if not done:
                 # self.model.predict(s') -> Q(s',a')
-                y_target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+                y_target = reward + self.gamma * np.amax(self.target_model.predict(next_state)[0])
             # create predictet target function
-            target_f = self.model.predict(state)
+            y = self.model.predict(state)
             # self.model.predict(s) -> Q(s,a)
-            target_f[0][int(action)] = y_target
+            # y.shape -> (1, 4)
+            y[0][int(action)] = y_target
             # fit method feeds input and output pairs to the model
             # then the model will train on those data to approximate the output
             # based on the input
             # [src](https://keon.io/deep-q-learning/)
             input = state
-            output = target_f
+            output = y
             self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
             # self.model.fit(state, target_f, epochs=1, verbose=0)
             # TODO: return mean score and mean steps
