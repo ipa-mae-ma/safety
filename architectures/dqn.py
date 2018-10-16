@@ -127,7 +127,7 @@ class DeepQNetwork:
         target_model = keras.models.clone_model(model)
         return model, target_model
 
-    def do_training(self, total_eps=20, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
+    def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         """
         train DQN algorithm with replay buffer and minibatch
         """
