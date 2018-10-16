@@ -25,7 +25,7 @@ import numpy as np
 import time
 import yaml
 # or FruitCollectionLarge or FruitCollectionMini
-from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge
+from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 
 ###############################
 # Necessary to import packages from different folders
@@ -56,14 +56,14 @@ np.set_printoptions(threshold=np.nan)
 
 class FruitCollectionTrain(FruitCollection):
     def __init__(self):
-        self.env = FruitCollectionSmall(rendering=False, lives=10, is_fruit=True, is_ghost=False, image_saving=False)
-        # self.env.render()
+        self.env = FruitCollectionMini(rendering=True, lives=10, is_fruit=True, is_ghost=False, image_saving=False)
+        self.env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (88, 88, 1)  # (img_height, img_width, n_channels)
+        self.input_dim = (80, 80, 1)  # (img_height, img_width, n_channels)
         self.mc = misc
-        self.dqn = DeepQNetwork(env=self.env, input_size=self.input_dim, output_size=4, name='DQN')
+        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=4, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -133,8 +133,8 @@ class FruitCollectionTrain(FruitCollection):
                     state_t = states[-2]
                     state_t1 = states[-1]
                     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
-                # self.env.render()
 
+                self.env.render()
                 if verbose:
                     print("\033[2J\033[H\033[2J", end="")
                     print()
