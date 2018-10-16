@@ -108,13 +108,13 @@ class FruitCollectionTrain(FruitCollection):
 
     def main(self, verbose=False):
         reward = []
-        for e in range(self.dqn.episode_max_len):
+        for e in range(self.dqn.total_eps):
             states = []
             ep_reward = []
             self.env.reset()
             rew = 0
 
-            for t in range(500):
+            for t in range(self.dqn.episode_max_len):
                 if t == 0:
                     action = np.random.choice(self.env.legal_actions)
                 else:
@@ -150,6 +150,7 @@ class FruitCollectionTrain(FruitCollection):
                     self.dqn.do_training(is_testing=False)
                     self.dqn.save_buffer(path='replay_buffer.pkl')
                     self.dqn.save_weights(path='weights.h5')
+                    self.dqn.update_target_model()
                     print('episode: {}/{}, score: {}'.format(e, self.dqn.episode_max_len, rew))
                     reward.append(rew)
                     rew = 0
