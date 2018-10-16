@@ -41,6 +41,9 @@ from architectures.misc import Font
 
 # tf.enable_eager_execution()
 
+# TODO: add update from target network instead of only one network
+# TODO: compare pyplot output of network after training with pyplot
+# TODO: implement warmstart
 
 class DeepQNetwork:
     def __init__(self,
@@ -121,7 +124,7 @@ class DeepQNetwork:
         target_model = keras.models.clone_model(model)
         return model, target_model
 
-    def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
+    def do_training(self, total_eps=10, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         """
         train DQN algorithm with replay buffer and minibatch
         """

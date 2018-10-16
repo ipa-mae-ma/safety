@@ -9,7 +9,8 @@ gamma: 0.99
 ################################
 # RMSprop
 ################################
-learning_rate: 0.00025
+# learning_rate: 0.00025
+learning_rate: 0.025
 gradient_momentum: 0.95
 squared_gradient_momentum: 0.95
 min_squared_gradient: 0.01
@@ -20,7 +21,7 @@ min_squared_gradient: 0.01
 annealing: True
 epsilon: 1.0
 epsilon_min: 0.1
-epsilon_decay: 0.001
+epsilon_decay: 0.01
 test_epsilon: 0.0
 
 
