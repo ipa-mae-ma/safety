@@ -81,7 +81,7 @@ class DeepQNetwork:
         self.epsilon_min = self.params['epsilon_min']
         self.epsilon_decay = self.params['epsilon_decay']
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
-        self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv')
+        self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv', append=True)
         self.episode_max_len = self.params['episode_max_len']
         self.total_eps = self.params['total_eps']
 
