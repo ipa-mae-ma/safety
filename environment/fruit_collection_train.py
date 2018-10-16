@@ -154,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
                     self.dqn.save_buffer(path='replay_buffer.pkl')
                     self.dqn.save_weights(path='weights.h5')
                     self.dqn.update_target_model()
-                    print('episode: {}/{}, score: {}, eps: {:.3f}'.format(e, self.dqn.episode_max_len, rew, self.dqn.epsilon))
+                    print('episode: {}/{}, score: {}, eps: {:.3f}'.format(e, self.dqn.total_eps, rew, self.dqn.epsilon))
                     reward.append(rew)
                     rew = 0
                     with open('reward.yml', 'w') as f:
