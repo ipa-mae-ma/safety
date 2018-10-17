@@ -638,18 +638,7 @@ def test(mode, fruit, ghost, save):
             print('─' * 30)
             print(obs)
             print('─' * 30)
-            frame = np.zeros(shape=obs[0,...].shape, dtype=np.float32)
-            # wall
-            frame[ obs[0,...] != 0] = env.rgb2grayscale(WALL, normalization=False)
-            # fruit
-            frame[ obs[1,...] != 0] = env.rgb2grayscale(BLUE, normalization=False)
-            # pacman
-            frame[ obs[2,...] != 0] = env.rgb2grayscale(WHITE, normalization=False)
-            # ghosts
-            frame[ obs[3,...] != 0] = env.rgb2grayscale(RED, normalization=False)
-            print(frame)
-            np.save('frame.npy', frame)
-            # print(np.add(obs[0, ...], obs[1, ...]))
+            print(np.add(obs[0, ...], obs[1, ...]))
             print('─' * 30)
             # capture screen as image
             # pygame.image.save(env.screen, 'screen.jpg')
