@@ -145,10 +145,10 @@ class FruitCollectionTrain(FruitCollection):
                     print('─' * 30)
                     print('─' * 30)
 
-                if terminated == False:
+                if terminated is False:
                     rew += r
                     # time.sleep(.1)
-                if terminated == True:
+                if terminated is True:
                     rew += r
                     self.dqn.do_training(is_testing=False)
                     self.dqn.save_buffer(path='replay_buffer.pkl')
