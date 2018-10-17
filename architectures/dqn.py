@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.4
+@version: 1.2.5
 
 #############################################################################################
 
 History:
+- v1.2.5: use optimized for gpu usage
 - v1.2.4: use target model
 - v1.2.3: add some documentation and new function to update target network
 - v1.2.2: update 'act' func to work with eps_greedy
@@ -46,6 +47,7 @@ from architectures.misc import Font
 # TODO: compare pyplot output of network after training with pyplot
 # TODO: implement warmstart
 # TODO: update _replay to use array batches instead of loop
+
 
 class DeepQNetwork:
     def __init__(self,
@@ -102,30 +104,34 @@ class DeepQNetwork:
         """
         build network with DQN parameters
         """
-        model = keras.Sequential()
-        # first hidden layer
-        model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
-                                      kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
-        # second hidden layer
-        model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
-        # third hidden layer
-        model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
-        # flatten conv output so last output is of shape (batchsize, output_size)
-        model.add(keras.layers.Flatten())
-        # fourth hidden layer
-        model.add(keras.layers.Dense(512, activation='relu'))
-        # output layer
-        model.add(keras.layers.Dense(self.output_dim, activation='relu'))
-        # compile model
-        model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                          decay=0.9,
-                                                          momentum=self.params['gradient_momentum'],
-                                                          epsilon=self.params['min_squared_gradient']),
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
+        model_list = []
+        model_list.append(keras.Sequential())
+        model_list.append(keras.Sequential())
+        for model in model_list:
+            # first hidden layer
+            model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
+                                          kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
+            # second hidden layer
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
+            # third hidden layer
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
+            # flatten conv output so last output is of shape (batchsize, output_size)
+            model.add(keras.layers.Flatten())
+            # fourth hidden layer
+            model.add(keras.layers.Dense(512, activation='relu'))
+            # output layer
+            model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            # compile model
+            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+                                                              decay=0.9,
+                                                              momentum=self.params['gradient_momentum'],
+                                                              epsilon=self.params['min_squared_gradient']),
+                          loss='categorical_crossentropy',
+                          metrics=['accuracy'])
 
-        target_model = keras.models.clone_model(model)
-        return model, target_model
+        # target_model = keras.models.clone_model(model)
+        # return model, target_model
+        return model_list[0], model_list[1]
 
     def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         """
@@ -145,7 +151,6 @@ class DeepQNetwork:
                 pass
         pbar.close()
         self.episode_num = 0
-
 
     def update_target_model(self) -> None:
         """
@@ -212,7 +217,7 @@ class DeepQNetwork:
         # for state, action, reward, next_state, done in minibatch:
         i = 0
         for sample in batch:
-            state = state_a[i, ...] # x[:,np.newaxis]
+            state = state_a[i, ...]  # x[:,np.newaxis]
             # add new axis to increase the fit the expeted size for the model
             state = state[np.newaxis, ...]
             next_state = next_state_a[i, ...]
