@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.7
+@version: 1.3.0
 
 #############################################################################################
 
 History:
+- v1.3.0: add warmstart function and simple neural net option
 - v1.2.7: add new config params, delete old ones
 - v1.2.6: add func for epsilon decay
 - v1.2.5: use optimized for gpu usage
@@ -56,6 +57,9 @@ class DeepQNetwork:
                  env,
                  input_dim: tuple=(1, 14, 21, 1),
                  output_dim: int=4,
+                 warmstart: bool=False,
+                 warmstart_path: str=None,
+                 simple_dqn: bool=True,
                  name: str='DQN') -> None:
         """
         DQN Agent can:
@@ -67,6 +71,9 @@ class DeepQNetwork:
             input_size (int): Input dimension of format type (n_img, img_height, img_width, n_channels)
             env (env): environment class
             output_size (int): Output dimension
+            warmstart (bool): load network weights from disk
+            warmstart_path (str): path where the weights are stored
+            simple (bool): use simplified DQN without conv_layers
             name (str, optional): TF Graph will be built under this name
         """
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -79,6 +86,7 @@ class DeepQNetwork:
         # self.mdp = mdp
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.simple_dqn = simple_dqn
         self.l_rate = self.params['learning_rate']
         self.minibatch_size = self.params['minibatch_size']
         self.gamma = self.params['gamma']
@@ -108,39 +116,79 @@ class DeepQNetwork:
 
         self.name = name
         self.model, self.target_model = self._build_network()
+        if warmstart:
+            self.warmstart(warmstart_path)
 
     def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
         """
         build network with DQN parameters
+        Output:
+            target_network (keras.model): neural nets for DQN
+            evaluation_network (keras.model): neural nets for DQN
         """
         model_list = []
         model_list.append(keras.Sequential())
         model_list.append(keras.Sequential())
-        for model in model_list:
-            # first hidden layer
-            model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
-                                          kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
-            # second hidden layer
-            model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
-            # third hidden layer
-            model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
-            # flatten conv output so last output is of shape (batchsize, output_size)
-            model.add(keras.layers.Flatten())
-            # fourth hidden layer
-            model.add(keras.layers.Dense(512, activation='relu'))
-            # output layer
-            model.add(keras.layers.Dense(self.output_dim, activation='relu'))
-            # compile model
-            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                              decay=0.9,
-                                                              momentum=self.params['gradient_momentum'],
-                                                              epsilon=self.params['min_squared_gradient']),
-                          loss='categorical_crossentropy',
-                          metrics=['accuracy'])
+        
+        if self.simple_dqn:
+            for model in model_list:
+                # if len(self.input_dim) == 3:
+                #     input_dim = tuple([1] + list(self.input_dim))
+                # inputs = keras.Input(input_dim, dtype='float32', name='inputs')
+                # flatten = keras.layers.Flatten()(inputs)
+                # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
+                # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
+                # model = keras.Model(inputs=inputs, outputs=outputs)
+                model.add(keras.layers.Dense(250, input_shape=self.input_dim, activation='relu'))
+                model.add(keras.layers.Flatten())
+                # hidden layer
+                # model.add(keras.layers.Dense(250, activation='relu'))
+                # output layer
+                model.add(keras.layers.Dense(self.output_dim, activation='linear'))
+                # compile model
+                model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+                                                                  decay=0.9,
+                                                                  momentum=self.params['gradient_momentum'],
+                                                                  epsilon=self.params['min_squared_gradient']),
+                              loss='categorical_crossentropy',
+                              metrics=['accuracy'])
+
+        else:
+            for model in model_list:
+                # first hidden layer
+                model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
+                                              kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
+                # second hidden layer
+                model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
+                # third hidden layer
+                model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
+                # flatten conv output so last output is of shape (batchsize, output_size)
+                model.add(keras.layers.Flatten())
+                # fourth hidden layer
+                model.add(keras.layers.Dense(512, activation='relu'))
+                # output layer
+                model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+                # compile model
+                model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+                                                                  decay=0.9,
+                                                                  momentum=self.params['gradient_momentum'],
+                                                                  epsilon=self.params['min_squared_gradient']),
+                              loss='categorical_crossentropy',
+                              metrics=['accuracy'])
 
         # target_model = keras.models.clone_model(model)
         # return model, target_model
         return model_list[0], model_list[1]
+
+    def warmstart(self, path: str) -> None:
+        """
+        reading weights from disk
+        Input:
+            path (str): path from where to read the weights
+        """
+        self.model.load_weights(os.path.join(path, 'weights.h5'))
+        self.target_model.load_weights(os.path.join(path, 'target_weights.h5'))
+
 
     def do_training(self, is_learning=True, is_testing=True):
         """
@@ -172,7 +220,7 @@ class DeepQNetwork:
         """
         return action from neural net
         Input:
-            state (np.array): the current state as shape (1, img_height, img_width, 1)
+            state (np.array): the current state as shape (img_height, img_width, 1)
         Output:
             action (int): action number
         """
@@ -193,7 +241,7 @@ class DeepQNetwork:
         Input:
             counter (int): step counter
         """
-        self.epsilon = -((self.epsilon - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.epsilon
+        self.epsilon = -((self.params['epsilon'] - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
     def remember(self, state, action: int, reward: int, next_state: int, done: int) -> None:
         """
