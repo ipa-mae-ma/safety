@@ -63,7 +63,8 @@ class FruitCollectionTrain(FruitCollection):
         self.overblow_factor = 8
         self.input_dim = (80, 80, 1)  # (img_height, img_width, n_channels)
         self.mc = misc
-        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=4, name='DQN')
+        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=4,
+                                warmstart=False, warmstart_path=None, simple_dqn=True, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -161,9 +162,9 @@ class FruitCollectionTrain(FruitCollection):
                         self.dqn.do_training(is_testing=False)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
-                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f}'.
+                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \ncounter: {}'.
                               format(episode, self.dqn.num_episodes, epoch,
-                                     self.dqn.num_epochs, rew, self.dqn.epsilon))
+                                     self.dqn.num_epochs, rew, self.dqn.epsilon, counter))
                         reward.append((rew, counter))
                         counter += 1
                         with open('reward.yml', 'w') as f:
