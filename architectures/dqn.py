@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.5
+@version: 1.2.7
 
 #############################################################################################
 
 History:
+- v1.2.7: add new config params, delete old ones
+- v1.2.6: add func for epsilon decay
 - v1.2.5: use optimized for gpu usage
 - v1.2.4: use target model
 - v1.2.3: add some documentation and new function to update target network
@@ -47,7 +49,7 @@ from architectures.misc import Font
 # TODO: compare pyplot output of network after training with pyplot
 # TODO: implement warmstart
 # TODO: update _replay to use array batches instead of loop
-
+# TODO: calculate epsilon decay
 
 class DeepQNetwork:
     def __init__(self,
@@ -82,13 +84,20 @@ class DeepQNetwork:
         self.gamma = self.params['gamma']
         self.epsilon = self.params['epsilon']
         self.epsilon_min = self.params['epsilon_min']
-        self.epsilon_decay = self.params['epsilon_decay']
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
         self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv', append=True)
-        self.episode_max_len = self.params['episode_max_len']
-        self.total_eps = self.params['total_eps']
+        # self.epsilon_decay = self.params['epsilon_decay']
+        # self.episode_max_len = self.params['episode_max_len']
+        # self.total_eps = self.params['total_eps']
 
-        self.fps = 0
+        # max number of epochs
+        self.num_epochs = self.params['num_epochs']
+        # number of episodes in one epoch
+        self.num_episodes = self.params['num_episodes']
+        # number of steps in one episode
+        self.num_steps = self.params['num_steps']
+
+        # self.fps = 0
         self.episode_num = 0
         self.last_episode_steps = 0
         self.total_training_steps = 0
@@ -133,12 +142,13 @@ class DeepQNetwork:
         # return model, target_model
         return model_list[0], model_list[1]
 
-    def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
+    def do_training(self, is_learning=True, is_testing=True):
         """
         train DQN algorithm with replay buffer and minibatch
         """
-        pbar = tqdm.tqdm(total=total_eps, unit='Episodes', ncols=100)
-        while self.episode_num < total_eps:
+        num_episodes = self.num_episodes
+        pbar = tqdm.tqdm(total=num_episodes, unit='Episodes', ncols=100)
+        while self.episode_num < num_episodes:
             # print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
             #    end='\n')
             if is_learning:
@@ -170,10 +180,20 @@ class DeepQNetwork:
         q_vals = self.model.predict(state)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
         # decay epsilon
-        if self.epsilon > self.epsilon_min:
-            self.epsilon -= self.epsilon_decay
+        # if self.epsilon > self.epsilon_min:
+        #     self.epsilon -= self.epsilon_decay
         # return action
         return action
+
+    def calc_eps_decay(self, step_counter: int) -> None:
+        """
+        calculates new epsilon for the given step counter according to the annealing formula
+        y = -mx + c
+        eps = -(eps - eps_min) * counter + eps
+        Input:
+            counter (int): step counter
+        """
+        self.epsilon = -((self.epsilon - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.epsilon
 
     def remember(self, state, action: int, reward: int, next_state: int, done: int) -> None:
         """
