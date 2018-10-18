@@ -638,6 +638,7 @@ def test(mode, fruit, ghost, save):
             print('─' * 30)
             print(obs)
             print('─' * 30)
+            print('term: ', term)
             print(np.add(obs[0, ...], obs[1, ...]))
             print('─' * 30)
             # capture screen as image

@@ -56,8 +56,8 @@ np.set_printoptions(threshold=np.nan)
 
 class FruitCollectionTrain(FruitCollection):
     def __init__(self):
-        self.env = FruitCollectionMini(rendering=True, lives=10, is_fruit=True, is_ghost=False, image_saving=False)
-        self.env.render()
+        self.env = FruitCollectionMini(rendering=False, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
+        # self.env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
@@ -108,58 +108,69 @@ class FruitCollectionTrain(FruitCollection):
 
     def main(self, verbose=False):
         reward = []
-        for e in range(self.dqn.total_eps):
-            states = []
-            ep_reward = []
-            self.env.reset()
-            rew = 0
-            framerate = 100
-            sleep_sec = 1 / framerate
+        counter = 0
+        for epoch in range(self.dqn.num_epochs):
 
-            for t in range(self.dqn.episode_max_len):
-                time.sleep(sleep_sec)
-                if t == 0:
-                    action = np.random.choice(self.env.legal_actions)
-                else:
-                    action = self.dqn.act(states[-1])
-                obs, r, terminated, info = self.env.step(action)
-                state_low = obs[2, ...]
-                # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
-                # state = state_high.reshape(input_dim)
-                # append grayscale image to state list
-                states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
-                # states.append(state)
-                if t >= 1:
-                    state_t = states[-2]
-                    state_t1 = states[-1]
-                    self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
+            for episode in range(self.dqn.num_episodes):
+                states = []
+                self.env.reset()
+                rew = 0
+                framerate = 100
+                sleep_sec = 1 / framerate
 
-                self.env.render()
-                if verbose:
-                    print("\033[2J\033[H\033[2J", end="")
-                    print()
-                    print('pos: ', self.env.player_pos_x, self.env.player_pos_y)
-                    print('reward: ', r)
-                    print('state:')
-                    print(state_low)
-                    print('─' * 30)
-                    print('─' * 30)
+                for t in range(self.dqn.num_steps):
+                    time.sleep(sleep_sec)
+                    if t == 0:
+                        action = np.random.choice(self.env.legal_actions)
+                    else:
+                        action = self.dqn.act(states[-1])
+                        self.dqn.calc_eps_decay(step_counter=counter)
+                    obs, r, terminated, info = self.env.step(action)
+                    state_low = obs[2, ...]
+                    # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
+                    # state = state_high.reshape(input_dim)
+                    # append grayscale image to state list
+                    states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
+                    # states.append(state)
+                    if t >= 1:
+                        state_t = states[-2]
+                        state_t1 = states[-1]
+                        self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
+                    # if r != 0:
+                    #     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
 
-                if terminated is False:
-                    rew += r
-                    # time.sleep(.1)
-                if terminated is True:
-                    rew += r
-                    self.dqn.do_training(is_testing=False)
-                    self.dqn.save_buffer(path='replay_buffer.pkl')
-                    self.dqn.save_weights(path='weights.h5')
-                    self.dqn.update_target_model()
-                    print('episode: {}/{}, score: {}, eps: {:.3f}'.format(e, self.dqn.total_eps, rew, self.dqn.epsilon))
-                    reward.append(rew)
-                    rew = 0
-                    with open('reward.yml', 'w') as f:
-                        yaml.dump(reward, f)
-                    break
+                    # self.env.render()
+                    if verbose:
+                        print("\033[2J\033[H\033[2J", end="")
+                        print()
+                        print('pos: ', self.env.player_pos_x, self.env.player_pos_y)
+                        print('reward: ', r)
+                        print('state:')
+                        print(state_low)
+                        print('─' * 30)
+                        print('─' * 30)
+
+                    if t == self.dqn.num_steps - 1:
+                        terminated = True
+
+                    if terminated is False:
+                        rew += r
+                        # time.sleep(.1)
+                    if terminated is True:
+                        rew += r
+                        self.dqn.do_training(is_testing=False)
+                        self.dqn.save_buffer(path='replay_buffer.pkl')
+                        self.dqn.save_weights(path='weights.h5')
+                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f}'.
+                              format(episode, self.dqn.num_episodes, epoch,
+                                     self.dqn.num_epochs, rew, self.dqn.epsilon))
+                        reward.append((rew, counter))
+                        counter += 1
+                        with open('reward.yml', 'w') as f:
+                            yaml.dump(reward, f)
+                        break
+            # update target model every epoch
+            self.dqn.update_target_model()
 
 
 if __name__ == '__main__':
