@@ -186,6 +186,11 @@ class DeepQNetwork:
         Input:
             path (str): path from where to read the weights
         """
+        print(Font.yellow + '–' * 50 + Font.end)
+        print(Font.yellow + 'Warmstart, load weights from: ' + os.path.join(path, 'weights.h5') + Font.end)
+        print(Font.yellow + 'Setting epsilon to eps_min: '+ str(self.epsilon_min) + Font.end)
+        print(Font.yellow + '–' * 50 + Font.end)
+        self.epsilon = self.epsilon_min
         self.model.load_weights(os.path.join(path, 'weights.h5'))
         self.target_model.load_weights(os.path.join(path, 'target_weights.h5'))
 
