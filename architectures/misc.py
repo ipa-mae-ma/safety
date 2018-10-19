@@ -308,7 +308,7 @@ def make_frame(observation, do_overblow=True, overblow_factor=8):
         overblow (bool): should the output frame be overblown or not
         overblow_factor (int): factor for change of dimensions
     Output:
-        frame (np.array): grayscale frame array with dim (observation.shape, 1)
+        frame (np.array): grayscale frame array with dim (observation.shape)
     """
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
@@ -326,4 +326,5 @@ def make_frame(observation, do_overblow=True, overblow_factor=8):
     frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=False)
     if do_overblow:
         frame = overblow(input_array=frame, factor=overblow_factor)
-    return frame[..., np.newaxis]
+    # frame dim = (obs.shape)
+    return frame
