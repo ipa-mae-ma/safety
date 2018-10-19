@@ -100,15 +100,17 @@ class DeepQNetwork:
         self.epsilon = self.params['epsilon']
         self.epsilon_min = self.params['epsilon_min']
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
+
+        # delete training log file in the beginning
+        # if os.path.exists(os.path.join(os.path.dirname(__file__), 'training_log_DQN.csv')):
+        if os.path.exists(os.path.join('/home/mae-ma/git/safety', 'training_log_DQN.csv')):
+            print(Font.yellow + '–' * 100 + Font.end)
+            print('delete old training log')
+            print(Font.yellow + '–' * 100 + Font.end)
+            os.remove(os.path.join(
+                '/home/mae-ma/git/safety', 'training_log_DQN.csv'))
+
         self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv', append=True)
-        # self.epsilon_decay = self.params['epsilon_decay']
-        # self.episode_max_len = self.params['episode_max_len']
-        # self.total_eps = self.params['total_eps']
-
-        if os.path.exists(os.path.join(os.path.dirname(__file__), 'training_log_DQN.csv')):
-            os.remove(os.path.join(os.path.dirname(
-                __file__), 'training_log_DQN.csv'))
-
         # max number of epochs
         self.num_epochs = self.params['num_epochs']
         # number of episodes in one epoch
@@ -163,7 +165,6 @@ class DeepQNetwork:
             model.add(keras.layers.Dense(self.output_dim,
                                             activation='linear', kernel_initializer='he_uniform'))
             model.summary()
-            self.plot_model(model)
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
