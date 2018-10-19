@@ -84,9 +84,15 @@ class DeepQNetwork:
         self.rng = nprs(self.params['random_seed'])
 
         # self.mdp = mdp
-        self.input_dim = input_dim
-        self.output_dim = output_dim
         self.simple_dqn = simple_dqn
+
+        if self.simple_dqn:
+            # input dim = (img_height, img_width)
+            self.input_dim = input_dim 
+        else:
+            # input dim = (img_height, img_width, n_channels)
+            self.input_dim = input_dim + (1,)
+        self.output_dim = output_dim  # number of actions
         self.l_rate = self.params['learning_rate']
         self.minibatch_size = self.params['minibatch_size']
         self.gamma = self.params['gamma']
@@ -104,6 +110,8 @@ class DeepQNetwork:
         self.num_episodes = self.params['num_episodes']
         # number of steps in one episode
         self.num_steps = self.params['num_steps']
+        # debug flag
+        self.debug = False
 
         # self.fps = 0
         self.episode_num = 0
@@ -116,7 +124,8 @@ class DeepQNetwork:
 
         self.name = name
         self.model, self.target_model = self._build_network()
-        if warmstart:
+        self.warmstart_flag = warmstart
+        if self.warmstart_flag:
             self.warmstart(warmstart_path)
 
     def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
@@ -139,8 +148,8 @@ class DeepQNetwork:
                 # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
                 # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
                 # model = keras.Model(inputs=inputs, outputs=outputs)
-                model.add(keras.layers.Dense(250, input_shape=self.input_dim, activation='relu'))
-                model.add(keras.layers.Flatten())
+                model.add(keras.layers.Dense(250, input_shape=(80,), activation='relu'))
+                # model.add(keras.layers.Flatten())
                 # hidden layer
                 # model.add(keras.layers.Dense(250, activation='relu'))
                 # output layer
@@ -152,10 +161,16 @@ class DeepQNetwork:
                                                                   epsilon=self.params['min_squared_gradient']),
                               loss='categorical_crossentropy',
                               metrics=['accuracy'])
+                if self.debug:
+                    print(Font.yellow + '–' * 100 + Font.bold)
+                    print(Font.yellow + 'Model: ' + Font.bold)
+                    print(model.to_yaml())
+                    print(Font.yellow + '–' * 100 + Font.bold)
 
         else:
             for model in model_list:
                 # first hidden layer
+                # input shape = (img_height, img_width, n_channels)
                 model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
                                               kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
                 # second hidden layer
@@ -186,10 +201,10 @@ class DeepQNetwork:
         Input:
             path (str): path from where to read the weights
         """
-        print(Font.yellow + '–' * 50 + Font.end)
+        print(Font.yellow + '–' * 100 + Font.end)
         print(Font.yellow + 'Warmstart, load weights from: ' + os.path.join(path, 'weights.h5') + Font.end)
         print(Font.yellow + 'Setting epsilon to eps_min: '+ str(self.epsilon_min) + Font.end)
-        print(Font.yellow + '–' * 50 + Font.end)
+        print(Font.yellow + '–' * 100 + Font.end)
         self.epsilon = self.epsilon_min
         self.model.load_weights(os.path.join(path, 'weights.h5'))
         self.target_model.load_weights(os.path.join(path, 'target_weights.h5'))
@@ -229,8 +244,12 @@ class DeepQNetwork:
         Output:
             action (int): action number
         """
-        state = state[np.newaxis, ...]
-        q_vals = self.model.predict(state)
+        # state = state[np.newaxis, ...]
+        if self.simple_dqn:
+            s = state
+        else:
+            s = state
+        q_vals = self.model.predict(s)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
         # decay epsilon
         # if self.epsilon > self.epsilon_min:
@@ -246,7 +265,18 @@ class DeepQNetwork:
         Input:
             counter (int): step counter
         """
-        self.epsilon = -((self.params['epsilon'] - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.params['epsilon']
+        if self.warmstart_flag:
+            self.epsilon = self.epsilon_min
+        else:
+            if self.debug:
+                print(Font.yellow + 'calc_eps_decay fct output:' + Font.end)
+                print('eps:',self.params['epsilon'])
+                print('counter:',step_counter)
+                coord_y = (self.params['epsilon'] - self.epsilon_min)
+                coord_x = self.params['eps_max_frame']
+                print('mx + c:', - coord_y/coord_x * step_counter + self.params['epsilon'])
+            if self.epsilon > self.epsilon_min:
+                self.epsilon = -((self.params['epsilon'] - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
     def remember(self, state, action: int, reward: int, next_state: int, done: int) -> None:
         """
@@ -290,12 +320,17 @@ class DeepQNetwork:
         # for state, action, reward, next_state, done in minibatch:
         i = 0
         for sample in batch:
-            state = state_a[i, ...]  # x[:,np.newaxis]
-            # add new axis to increase the fit the expeted size for the model
-            state = state[np.newaxis, ...]
-            next_state = next_state_a[i, ...]
-            # add new axis to increase the fit the expeted size for the model
-            next_state = next_state[np.newaxis, ...]
+            if self.simple_dqn:
+                state = state_a[i, ...]  # x[:,np.newaxis]
+                next_state = next_state_a[i, ...]
+            else:
+                state = state_a[i, ...]  # x[:,np.newaxis]
+                # add new axis to increase the fit the expeted size for the model
+                state = state[np.newaxis, ..., np.newaxis]
+                next_state = next_state_a[i, ...]
+                # add new axis to increase the fit the expeted size for the model
+                next_state = next_state[np.newaxis, ..., np.newaxis]
+            
             action = sample[ACTION]
             reward = sample[REWARD]
             done = sample[DONE]
