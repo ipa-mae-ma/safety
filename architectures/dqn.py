@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.0
+@version: 1.4.0
 
 #############################################################################################
 
 History:
+- v1.4.0: use tf cpp backend to perform training -> faster
+- v1.3.1: remove log file at beginning of training
 - v1.3.0: add warmstart function and simple neural net option
 - v1.2.7: add new config params, delete old ones
 - v1.2.6: add func for epsilon decay
@@ -103,6 +105,10 @@ class DeepQNetwork:
         # self.episode_max_len = self.params['episode_max_len']
         # self.total_eps = self.params['total_eps']
 
+        if os.path.exists(os.path.join(os.path.dirname(__file__), 'training_log_DQN.csv')):
+            os.remove(os.path.join(os.path.dirname(
+                __file__), 'training_log_DQN.csv'))
+
         # max number of epochs
         self.num_epochs = self.params['num_epochs']
         # number of episodes in one epoch
@@ -161,8 +167,7 @@ class DeepQNetwork:
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
-                                                                momentum=self.params['gradient_momentum'],
-                                                                epsilon=self.params['min_squared_gradient']),
+                                                                momentum=self.params['gradient_momentum']),
                             loss='categorical_crossentropy',
                             metrics=['accuracy'])
             if self.debug:
@@ -326,39 +331,41 @@ class DeepQNetwork:
         Input:
             batch_size (int): size of batch to sample from replay buffer
         """
+        batch_size = min(batch_size, self.replay_buffer.__len__())
         # get 5 arrays in minibatch for state, action, reward, next_state, done
         minibatch = self.replay_buffer.sample(batch_size=batch_size)
         # all of type np.array -> suffix "_a"
         state_a, action_a, reward_a, next_state_a, done_a = minibatch
         ACTION, REWARD, DONE = 0, 1, 2
 
-        update_input = np.zeros((batch_size, 100))
-        update_target = np.zeros((batch_size, 100))
+        state_input = np.zeros((batch_size, 100))
+        next_state_input = np.zeros((batch_size, 100))
         action, reward, done = [], [], []
 
         if self.debug:
             print(Font.yellow + '–' * 100 + Font.end)
             print('state_a shape: ', state_a.shape)
-            print('update input shape: ', update_input.shape)
+            print('update input shape: ', state_input.shape)
             print(Font.yellow + '–' * 100 + Font.end)
 
-        update_input = state_a[:, 0, :]
-        update_target = next_state_a[:, 0, :]
+        state_input = state_a[:, 0, :]
+        next_state_input = next_state_a[:, 0, :]
         for i in range(batch_size):
             action.append(action_a[i])
             reward.append(reward_a[i])
             done.append(done_a[i])
 
-        target = self.model.predict(update_input)
-        target_val = self.target_model.predict(update_target)
+        y = self.model.predict(state_input)
+        y_target = self.target_model.predict(next_state_input)
 
         for i in range(batch_size):
             if done[i]:
-                target[i][action[i]] = reward[i]
+                y[i][action[i]] = reward[i]
             else:
-                target[i][action[i]] = reward[i] + self.gamma * np.amax(target_val[i])
+                y[i][action[i]] = reward[i] + self.gamma * np.amax(y_target[i])
 
-        self.model.fit(update_input, target, batch_size=batch_size, epochs=1, verbose=0)
+        self.model.fit(state_input, y, batch_size=batch_size,
+                       epochs=1, verbose=0, callbacks=[self.csv_logger])
 
         # # make one array of size (5, batch_size)
         # batch = np.concatenate((action_a, reward_a, done_a), axis=0).reshape(len(minibatch) - 2, -1)
