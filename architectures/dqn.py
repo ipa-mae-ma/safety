@@ -30,6 +30,8 @@ from collections import deque
 import numpy as np
 import os
 import yaml
+import pydot
+import graphviz
 # import time
 # import click
 # import gym
@@ -144,7 +146,9 @@ class DeepQNetwork:
             # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
             # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
             # model = keras.Model(inputs=inputs, outputs=outputs)
-            model.add(keras.layers.Dense(250, input_shape=(1,),
+            
+            # use input_dim NOT input_shape
+            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Flatten())
             # hidden layer
@@ -162,10 +166,10 @@ class DeepQNetwork:
                             loss='categorical_crossentropy',
                             metrics=['accuracy'])
             if self.debug:
-                print(Font.yellow + '–' * 100 + Font.bold)
-                print(Font.yellow + 'Model: ' + Font.bold)
+                print(Font.yellow + '–' * 100 + Font.end)
+                print(Font.yellow + 'Model: ' + Font.end)
                 print(model.to_yaml())
-                print(Font.yellow + '–' * 100 + Font.bold)
+                print(Font.yellow + '–' * 100 + Font.end)
 
         else:
             # first hidden layer
@@ -254,6 +258,10 @@ class DeepQNetwork:
         else:
             s = state
         q_vals = self.model.predict(s)
+        if self.debug:
+            print(Font.yellow + '–' * 100 + Font.end)
+            print('q vals: ', q_vals)
+            print(Font.yellow + '–' * 100 + Font.end)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
         # return action
         return action
@@ -323,47 +331,76 @@ class DeepQNetwork:
         # all of type np.array -> suffix "_a"
         state_a, action_a, reward_a, next_state_a, done_a = minibatch
         ACTION, REWARD, DONE = 0, 1, 2
-        # make one array of size (5, batch_size)
-        batch = np.concatenate((action_a, reward_a, done_a), axis=0).reshape(len(minibatch) - 2, -1)
-        # transpose to array of size (batch_size, 5)
-        batch = batch.transpose()
-        # for state, action, reward, next_state, done in minibatch:
-        i = 0
-        for sample in batch:
-            if self.simple_dqn:
-                state = state_a[i, ...]  # x[:,np.newaxis]
-                next_state = next_state_a[i, ...]
+
+        update_input = np.zeros((batch_size, 100))
+        update_target = np.zeros((batch_size, 100))
+        action, reward, done = [], [], []
+
+        if self.debug:
+            print(Font.yellow + '–' * 100 + Font.end)
+            print('state_a shape: ', state_a.shape)
+            print('update input shape: ', update_input.shape)
+            print(Font.yellow + '–' * 100 + Font.end)
+
+        update_input = state_a[:, 0, :]
+        update_target = next_state_a[:, 0, :]
+        for i in range(batch_size):
+            action.append(action_a[i])
+            reward.append(reward_a[i])
+            done.append(done_a[i])
+
+        target = self.model.predict(update_input)
+        target_val = self.target_model.predict(update_target)
+
+        for i in range(batch_size):
+            if done[i]:
+                target[i][action[i]] = reward[i]
             else:
-                state = state_a[i, ...]  # x[:,np.newaxis]
-                # add new axis to increase the fit the expeted size for the model
-                state = state[np.newaxis, ..., np.newaxis]
-                next_state = next_state_a[i, ...]
-                # add new axis to increase the fit the expeted size for the model
-                next_state = next_state[np.newaxis, ..., np.newaxis]
-            
-            action = sample[ACTION]
-            reward = sample[REWARD]
-            done = sample[DONE]
-            # set the target for DQN
-            y_target = reward
-            if not done:
-                # self.model.predict(s') -> Q(s',a')
-                y_target = reward + self.gamma * np.amax(self.target_model.predict(next_state)[0])
-            # create predictet target function
-            y = self.model.predict(state)
-            # self.model.predict(s) -> Q(s,a)
-            # y.shape -> (1, 4)
-            y[0][int(action)] = y_target
-            # fit method feeds input and output pairs to the model
-            # then the model will train on those data to approximate the output
-            # based on the input
-            # [src](https://keon.io/deep-q-learning/)
-            input = state
-            output = y
-            self.history = self.model.fit(input, output, epochs=1, verbose=1, callbacks=[self.csv_logger])
-            # self.model.fit(state, target_f, epochs=1, verbose=0)
-            # TODO: return mean score and mean steps
-            i += 1
+                target[i][action[i]] = reward[i] + self.gamma * np.amax(target_val[i])
+
+        self.model.fit(update_input, target, batch_size=batch_size, epochs=1, verbose=0)
+
+        # # make one array of size (5, batch_size)
+        # batch = np.concatenate((action_a, reward_a, done_a), axis=0).reshape(len(minibatch) - 2, -1)
+        # # transpose to array of size (batch_size, 5)
+        # batch = batch.transpose()
+        # # for state, action, reward, next_state, done in minibatch:
+        # i = 0
+        # for sample in batch:
+        #    if self.simple_dqn:
+        #        state = state_a[i, ...]  # x[:,np.newaxis]
+        #        next_state = next_state_a[i, ...]
+        #    else:
+        #        state = state_a[i, ...]  # x[:,np.newaxis]
+        #        # add new axis to increase the fit the expeted size for the model
+        #        state = state[np.newaxis, ..., np.newaxis]
+        #        next_state = next_state_a[i, ...]
+        #        # add new axis to increase the fit the expeted size for the model
+        #        next_state = next_state[np.newaxis, ..., np.newaxis]
+        #    
+        #    action = sample[ACTION]
+        #    reward = sample[REWARD]
+        #    done = sample[DONE]
+        #    # set the target for DQN
+        #    y_target = reward
+        #    if not done:
+        #        # self.model.predict(s') -> Q(s',a')
+        #        y_target = reward + self.gamma * np.amax(self.target_model.predict(next_state)[0])
+        #    # create predictet target function
+        #    y = self.model.predict(state)
+        #    # self.model.predict(s) -> Q(s,a)
+        #    # y.shape -> (1, 4)
+        #    y[0][int(action)] = y_target
+        #    # fit method feeds input and output pairs to the model
+        #    # then the model will train on those data to approximate the output
+        #    # based on the input
+        #    # [src](https://keon.io/deep-q-learning/)
+        #    input = state
+        #    output = y
+        #    self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
+        #    # self.model.fit(state, target_f, epochs=1, verbose=0)
+        #    # TODO: return mean score and mean steps
+        #    i += 1
 
     def main(self):
         print('DQN here')

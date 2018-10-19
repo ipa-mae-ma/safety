@@ -24,6 +24,7 @@ import pygame
 import numpy as np
 import time
 import yaml
+import click
 # or FruitCollectionLarge or FruitCollectionMini
 from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 
@@ -61,9 +62,9 @@ class FruitCollectionTrain(FruitCollection):
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (80, 80)  # (img_height, img_width)
+        self.input_dim = (10, 10)  # (img_height, img_width)
         self.mc = misc
-        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=4,
+        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=self.env.nb_actions,
                                 warmstart=False, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=True, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
@@ -108,6 +109,10 @@ class FruitCollectionTrain(FruitCollection):
                 self.active_fruits[idx] = True
                 self.mini_target[self.possible_fruits.index(f)] = True
 
+
+#    @click.command()
+#    @click.option('--warmstart', '-w', help='load the network weights')
+#    @click.option('--simple', '-s', default=True, help='uses simple DQN network')
     def main(self, verbose=False):
         reward = []
         counter = 0
@@ -121,6 +126,7 @@ class FruitCollectionTrain(FruitCollection):
                 sleep_sec = 1 / framerate
 
                 for t in range(self.dqn.num_steps):
+                    # fix framerate
                     time.sleep(sleep_sec)
                     if t == 0:
                         action = np.random.choice(self.env.legal_actions)
@@ -132,9 +138,10 @@ class FruitCollectionTrain(FruitCollection):
                     # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
                     # state = state_high.reshape(input_dim)
                     # append grayscale image to state list
-                    
                     # states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
-                    states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
+                    states.append(self.mc.make_frame(obs, do_overblow=False, 
+                                                     overblow_factor=self.overblow_factor)
+                                                     .flatten().reshape(-1, 100))
                     # states.append(state)
                     if t >= 1:
                         state_t = states[-2]
@@ -162,7 +169,6 @@ class FruitCollectionTrain(FruitCollection):
 
                     if terminated is False:
                         rew += r
-                        # time.sleep(.1)
                     if terminated is True:
                         rew += r
                         self.dqn.do_training(is_testing=False)
@@ -175,8 +181,9 @@ class FruitCollectionTrain(FruitCollection):
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
-            # update target model every epoch
-            self.dqn.update_target_model()
+                    # update target model
+                    if counter == self.dqn.params['target_network_update_frequency']:
+                        self.dqn.update_target_model()
 
 
 if __name__ == '__main__':
