@@ -182,7 +182,10 @@ class FruitCollectionTrain(FruitCollection):
                             yaml.dump(reward, f)
                         break
                     # update target model
-                    if counter == self.dqn.params['target_network_update_frequency']:
+                    if counter % self.dqn.params['target_network_update_frequency'] == 0:
+                        print('–' * 50)
+                        print('update')
+                        print('–' * 50)
                         self.dqn.update_target_model()
 
 
