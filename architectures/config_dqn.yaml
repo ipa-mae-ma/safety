@@ -36,7 +36,7 @@ test_epsilon: 0.0
 num_epochs: 50
 num_episodes: 100
 num_steps: 300
-
+target_network_update_frequency: 10000
 
 rendering: False
 nb_experiments: 1
