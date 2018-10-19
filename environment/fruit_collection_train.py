@@ -56,15 +56,16 @@ np.set_printoptions(threshold=np.nan)
 
 class FruitCollectionTrain(FruitCollection):
     def __init__(self):
-        self.env = FruitCollectionMini(rendering=False, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
-        # self.env.render()
+        self.env = FruitCollectionMini(rendering=True, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
+        self.env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (80, 80, 1)  # (img_height, img_width, n_channels)
+        self.input_dim = (80, 80)  # (img_height, img_width)
         self.mc = misc
         self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=4,
-                                warmstart=False, warmstart_path=None, simple_dqn=True, name='DQN')
+                                warmstart=False, warmstart_path='/home/mae-ma/git/safety', 
+                                simple_dqn=True, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -131,6 +132,8 @@ class FruitCollectionTrain(FruitCollection):
                     # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
                     # state = state_high.reshape(input_dim)
                     # append grayscale image to state list
+                    
+                    # states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
                     states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
                     # states.append(state)
                     if t >= 1:
@@ -140,7 +143,10 @@ class FruitCollectionTrain(FruitCollection):
                     # if r != 0:
                     #     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
 
-                    # self.env.render()
+                    self.env.render()
+                    # increase step counter
+                    counter += 1
+
                     if verbose:
                         print("\033[2J\033[H\033[2J", end="")
                         print()
@@ -162,11 +168,10 @@ class FruitCollectionTrain(FruitCollection):
                         self.dqn.do_training(is_testing=False)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
-                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \ncounter: {}'.
+                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
                               format(episode, self.dqn.num_episodes, epoch,
                                      self.dqn.num_epochs, rew, self.dqn.epsilon, counter))
                         reward.append((rew, counter))
-                        counter += 1
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
