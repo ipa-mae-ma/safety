@@ -12,9 +12,9 @@ gamma: 0.99
 ################################
 # RMSprop
 ################################
-# learning_rate: 0.00025
+learning_rate: 0.00025
 # lr from HRA
-learning_rate: 0.001
+# learning_rate: 0.001
 gradient_momentum: 0.95
 squared_gradient_momentum: 0.95
 min_squared_gradient: 0.01
