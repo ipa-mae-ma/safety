@@ -46,11 +46,8 @@ from architectures.misc import Font
 
 # tf.enable_eager_execution()
 
-# TODO: add update from target network instead of only one network
-# TODO: compare pyplot output of network after training with pyplot
-# TODO: implement warmstart
+# TODO: compare output of network after training with pyplot
 # TODO: update _replay to use array batches instead of loop
-# TODO: calculate epsilon decay
 
 class DeepQNetwork:
     def __init__(self,
@@ -88,7 +85,7 @@ class DeepQNetwork:
 
         if self.simple_dqn:
             # input dim = (img_height, img_width)
-            self.input_dim = input_dim 
+            self.input_dim = input_dim[0] * input_dim[1]
         else:
             # input dim = (img_height, img_width, n_channels)
             self.input_dim = input_dim + (1,)
@@ -112,6 +109,7 @@ class DeepQNetwork:
         self.num_steps = self.params['num_steps']
         # debug flag
         self.debug = False
+        self.history = None
 
         # self.fps = 0
         self.episode_num = 0
@@ -123,7 +121,8 @@ class DeepQNetwork:
         self.env = env
 
         self.name = name
-        self.model, self.target_model = self._build_network()
+        self.model = self._build_network()
+        self.target_model = self._build_network()
         self.warmstart_flag = warmstart
         if self.warmstart_flag:
             self.warmstart(warmstart_path)
@@ -135,65 +134,64 @@ class DeepQNetwork:
             target_network (keras.model): neural nets for DQN
             evaluation_network (keras.model): neural nets for DQN
         """
-        model_list = []
-        model_list.append(keras.Sequential())
-        model_list.append(keras.Sequential())
+        model = keras.Sequential()
         
         if self.simple_dqn:
-            for model in model_list:
-                # if len(self.input_dim) == 3:
-                #     input_dim = tuple([1] + list(self.input_dim))
-                # inputs = keras.Input(input_dim, dtype='float32', name='inputs')
-                # flatten = keras.layers.Flatten()(inputs)
-                # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
-                # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
-                # model = keras.Model(inputs=inputs, outputs=outputs)
-                model.add(keras.layers.Dense(250, input_shape=(80,), activation='relu'))
-                # model.add(keras.layers.Flatten())
-                # hidden layer
-                # model.add(keras.layers.Dense(250, activation='relu'))
-                # output layer
-                model.add(keras.layers.Dense(self.output_dim, activation='linear'))
-                # compile model
-                model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                                  decay=0.9,
-                                                                  momentum=self.params['gradient_momentum'],
-                                                                  epsilon=self.params['min_squared_gradient']),
-                              loss='categorical_crossentropy',
-                              metrics=['accuracy'])
-                if self.debug:
-                    print(Font.yellow + '–' * 100 + Font.bold)
-                    print(Font.yellow + 'Model: ' + Font.bold)
-                    print(model.to_yaml())
-                    print(Font.yellow + '–' * 100 + Font.bold)
+            # if len(self.input_dim) == 3:
+            #     input_dim = tuple([1] + list(self.input_dim))
+            # inputs = keras.Input(input_dim, dtype='float32', name='inputs')
+            # flatten = keras.layers.Flatten()(inputs)
+            # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
+            # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
+            # model = keras.Model(inputs=inputs, outputs=outputs)
+            model.add(keras.layers.Dense(250, input_shape=(1,),
+                                            activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Flatten())
+            # hidden layer
+            # model.add(keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform'))
+            # output layer
+            model.add(keras.layers.Dense(self.output_dim,
+                                            activation='linear', kernel_initializer='he_uniform'))
+            model.summary()
+            self.plot_model(model)
+            # compile model
+            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+                                                                decay=0.9,
+                                                                momentum=self.params['gradient_momentum'],
+                                                                epsilon=self.params['min_squared_gradient']),
+                            loss='categorical_crossentropy',
+                            metrics=['accuracy'])
+            if self.debug:
+                print(Font.yellow + '–' * 100 + Font.bold)
+                print(Font.yellow + 'Model: ' + Font.bold)
+                print(model.to_yaml())
+                print(Font.yellow + '–' * 100 + Font.bold)
 
         else:
-            for model in model_list:
-                # first hidden layer
-                # input shape = (img_height, img_width, n_channels)
-                model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
-                                              kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
-                # second hidden layer
-                model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
-                # third hidden layer
-                model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
-                # flatten conv output so last output is of shape (batchsize, output_size)
-                model.add(keras.layers.Flatten())
-                # fourth hidden layer
-                model.add(keras.layers.Dense(512, activation='relu'))
-                # output layer
-                model.add(keras.layers.Dense(self.output_dim, activation='relu'))
-                # compile model
-                model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                                  decay=0.9,
-                                                                  momentum=self.params['gradient_momentum'],
-                                                                  epsilon=self.params['min_squared_gradient']),
-                              loss='categorical_crossentropy',
-                              metrics=['accuracy'])
+            # first hidden layer
+            # input shape = (img_height, img_width, n_channels)
+            model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
+                                            kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
+            # second hidden layer
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
+            # third hidden layer
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
+            # flatten conv output so last output is of shape (batchsize, output_size)
+            model.add(keras.layers.Flatten())
+            # fourth hidden layer
+            model.add(keras.layers.Dense(512, activation='relu'))
+            # output layer
+            model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            # compile model
+            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+                                                                decay=0.9,
+                                                                momentum=self.params['gradient_momentum'],
+                                                                epsilon=self.params['epsilon']),
+                            loss='categorical_crossentropy',
+                            metrics=['accuracy'])
 
         # target_model = keras.models.clone_model(model)
-        # return model, target_model
-        return model_list[0], model_list[1]
+        return model
 
     def warmstart(self, path: str) -> None:
         """
@@ -247,13 +245,16 @@ class DeepQNetwork:
         # state = state[np.newaxis, ...]
         if self.simple_dqn:
             s = state
+            if self.debug:
+                print(Font.yellow + '–' * 100 + Font.end)
+                print(Font.yellow + 'DQN "act" fct here:' + Font.end)
+                print('state shape: ', state.shape)
+                print('state input: \n', state)
+                print(Font.yellow + '–' * 100 + Font.end)
         else:
             s = state
         q_vals = self.model.predict(s)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
-        # decay epsilon
-        # if self.epsilon > self.epsilon_min:
-        #     self.epsilon -= self.epsilon_decay
         # return action
         return action
 
@@ -269,12 +270,14 @@ class DeepQNetwork:
             self.epsilon = self.epsilon_min
         else:
             if self.debug:
-                print(Font.yellow + 'calc_eps_decay fct output:' + Font.end)
+                print(Font.yellow + '–' * 100 + Font.end)
+                print(Font.yellow + 'DQN "calc_eps_decay" fct output:' + Font.end)
                 print('eps:',self.params['epsilon'])
                 print('counter:',step_counter)
                 coord_y = (self.params['epsilon'] - self.epsilon_min)
                 coord_x = self.params['eps_max_frame']
                 print('mx + c:', - coord_y/coord_x * step_counter + self.params['epsilon'])
+                print(Font.yellow + '–' * 100 + Font.end)
             if self.epsilon > self.epsilon_min:
                 self.epsilon = -((self.params['epsilon'] - self.epsilon_min) / self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
@@ -289,6 +292,13 @@ class DeepQNetwork:
             done (int): scalar value if episode is finished
         """
         self.replay_buffer.add(obs_t=state, act=action, rew=reward, obs_tp1=next_state, done=done)
+
+    def plot_model(self, model) -> None:
+        """
+        plot the model to a file
+        """
+        keras.utils.plot_model(model, to_file='model.png')
+
 
     def save_buffer(self, path: str) -> None:
         """
@@ -350,7 +360,7 @@ class DeepQNetwork:
             # [src](https://keon.io/deep-q-learning/)
             input = state
             output = y
-            self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
+            self.history = self.model.fit(input, output, epochs=1, verbose=1, callbacks=[self.csv_logger])
             # self.model.fit(state, target_f, epochs=1, verbose=0)
             # TODO: return mean score and mean steps
             i += 1
