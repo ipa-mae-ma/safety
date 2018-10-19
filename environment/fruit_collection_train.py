@@ -25,6 +25,7 @@ import numpy as np
 import time
 import yaml
 import click
+import tqdm
 # or FruitCollectionLarge or FruitCollectionMini
 from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 
@@ -57,7 +58,7 @@ np.set_printoptions(threshold=np.nan)
 
 class FruitCollectionTrain(FruitCollection):
     def __init__(self):
-        self.env = FruitCollectionMini(rendering=True, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
+        self.env = FruitCollectionMini(rendering=False, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
         self.env.render()
 
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
@@ -124,8 +125,7 @@ class FruitCollectionTrain(FruitCollection):
                 rew = 0
                 framerate = 100
                 sleep_sec = 1 / framerate
-
-                for t in range(self.dqn.num_steps):
+                for t in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
                     # fix framerate
                     time.sleep(sleep_sec)
                     if t == 0:
@@ -147,6 +147,8 @@ class FruitCollectionTrain(FruitCollection):
                         state_t = states[-2]
                         state_t1 = states[-1]
                         self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
+                        self.dqn.do_training(is_testing=False)
+
                     # if r != 0:
                     #     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
 
@@ -171,7 +173,7 @@ class FruitCollectionTrain(FruitCollection):
                         rew += r
                     if terminated is True:
                         rew += r
-                        self.dqn.do_training(is_testing=False)
+                        # self.dqn.do_training(is_testing=False)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
                         print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
@@ -183,7 +185,7 @@ class FruitCollectionTrain(FruitCollection):
                         break
                     # update target model
                     if counter % self.dqn.params['target_network_update_frequency'] == 0:
-                        print('–' * 50)
+                        print('\n' + '–' * 50)
                         print('update')
                         print('–' * 50)
                         self.dqn.update_target_model()

@@ -131,6 +131,7 @@ class DeepQNetwork:
         self.env = env
 
         self.name = name
+        self.model_yaml = None
         self.model = self._build_network()
         self.target_model = self._build_network()
         self.warmstart_flag = warmstart
@@ -156,7 +157,7 @@ class DeepQNetwork:
             # model = keras.Model(inputs=inputs, outputs=outputs)
             
             # use input_dim NOT input_shape
-            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            model.add(keras.layers.Dense(100, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Flatten())
             # hidden layer
@@ -165,6 +166,8 @@ class DeepQNetwork:
             model.add(keras.layers.Dense(self.output_dim,
                                             activation='linear', kernel_initializer='he_uniform'))
             model.summary()
+            # for evaluation purpose
+            self.model_yaml = model.to_yaml()
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
@@ -223,19 +226,19 @@ class DeepQNetwork:
         train DQN algorithm with replay buffer and minibatch
         """
         num_episodes = self.num_episodes
-        pbar = tqdm.tqdm(total=num_episodes, unit='Episodes', ncols=100)
-        while self.episode_num < num_episodes:
+        # pbar = tqdm.tqdm(total=num_episodes, unit='Episodes', ncols=100)
+        while self.episode_num < 1:
             # print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
             #    end='\n')
             if is_learning:
-                pbar.update(1)
+                # pbar.update(1)
                 self._replay(batch_size=self.minibatch_size)
                 self.episode_num += 1
 
             if is_testing:
                 # TODO: implement testing output
                 pass
-        pbar.close()
+        # pbar.close()
         self.episode_num = 0
 
     def update_target_model(self) -> None:
