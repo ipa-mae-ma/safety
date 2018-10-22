@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.5.0
+@version: 1.5.1
 
 #############################################################################################
 
 History:
+- v1.5.1: use only mean-squared-error as loss
 - v1.5.0: update convnet to work with batches of np.arrays
 - v1.4.2: implement soft update for target weights
 - v1.4.1: save model to "model.yml" file
@@ -35,8 +36,6 @@ from collections import deque
 import numpy as np
 import os
 import yaml
-import pydot
-import graphviz
 import tensorflow as tf
 from tensorflow import keras
 import tqdm
@@ -157,7 +156,7 @@ class DeepQNetwork:
             # model = keras.Model(inputs=inputs, outputs=outputs)
             
             # use input_dim NOT input_shape
-            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            model.add(keras.layers.Dense(50, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Dense(500, activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Flatten())
@@ -173,7 +172,6 @@ class DeepQNetwork:
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
                                                                 momentum=self.params['gradient_momentum']),
-                            # loss='categorical_crossentropy',
                             loss='mean_squared_error',
                             metrics=['accuracy'])
             if self.debug:
@@ -201,9 +199,8 @@ class DeepQNetwork:
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
-                                                                momentum=self.params['gradient_momentum'],
-                                                                epsilon=self.params['epsilon']),
-                            loss='categorical_crossentropy',
+                                                                momentum=self.params['gradient_momentum']),
+                            loss='mean_squared_error',
                             metrics=['accuracy'])
 
         # target_model = keras.models.clone_model(model)
@@ -320,12 +317,6 @@ class DeepQNetwork:
             done (int): scalar value if episode is finished
         """
         self.replay_buffer.add(obs_t=state, act=action, rew=reward, obs_tp1=next_state, done=done)
-
-    def plot_model(self, model) -> None:
-        """
-        plot the model to a file
-        """
-        keras.utils.plot_model(model, to_file='model.png')
 
 
     def save_buffer(self, path: str) -> None:
