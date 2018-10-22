@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.1.1
 
 #############################################################################################
 
 History:
+- v1.1.1: use relative paths
 - v1.1.0: add click commands
 - v1.0.0: first init
 """
@@ -81,9 +82,10 @@ def smooth(x, window_len=11, window='hanning'):
 class Evaluation:
     def __init__(self):
         # src_filepath = home/mae-ma/git/safety
-        self.src_filepath = os.path.dirname(os.path.dirname(__file__))
+        # self.src_filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.src_filepath = os.getcwd()
         
-        with open('/home/mae-ma/git/safety/reward.yml', 'r') as file:
+        with open(os.path.join(self.src_filepath, 'reward.yml'), 'r') as file:
             self.yml = yaml.load(file)
 
         self.tgt_filepath = os.path.join(os.path.dirname(
@@ -94,8 +96,8 @@ class Evaluation:
     def plot(self):
         print('–'*50)
         print('Plot "reward.yaml"')
-        self.csv = np.genfromtxt(
-            '/home/mae-ma/git/safety/training_log_DQN.csv', delimiter=',')
+        csv_path = os.path.join(os.getcwd(), 'training_log_DQN.csv')
+        self.csv = np.genfromtxt(csv_path, delimiter=',')
         smoothed = smooth(self.csv[:, 2], 31)
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
@@ -135,17 +137,14 @@ class Evaluation:
 
 @click.command()
 @click.option('--plot/-no-plot', '-p/-np', default=True, help='plot the results from the "results.yaml" file')
-@click.option('--save/--no-save', '-s/-ns', default=True, help='backups the files')
+@click.option('--save/--no-save', '-s/-ns', default=False, help='backups the files')
 def main(plot, save):
     ev = Evaluation()
+    print('src: ', ev.src_filepath)
     if save:
         ev.save_all()
-
     if plot:
         ev.plot()
-
-
-
 
 if __name__ == '__main__':
     main()
