@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.2
+@version: 2.0.3
 
 #############################################################################################
 
 History:
+- v2.0.3: add more terminal flags
 - v2.0.2: add bool for rendering
 - v2.0.1: implement click functionality
 - v2.0.0: update main function for better structure
@@ -59,7 +60,7 @@ np.set_printoptions(threshold=np.nan)
 
 
 class FruitCollectionTrain(FruitCollection):
-    def __init__(self, warmstart=False, simple=True, render=False):
+    def __init__(self, warmstart=False, simple=True, render=False, testing=False):
         print('–'*100)
         print('–'*100)
         print('Warmstart:\t', warmstart)
@@ -70,6 +71,7 @@ class FruitCollectionTrain(FruitCollection):
         self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
         self.env.render()
 
+        self.testing = testing
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
         self.input_dim = (10, 10)  # (img_height, img_width)
@@ -152,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
                         state_t = states[-2]
                         state_t1 = states[-1]
                         self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
-                        self.dqn.do_training(is_testing=False)
+                        self.dqn.do_training(is_testing=self.testing)
 
                     # if r != 0:
                     #     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
@@ -173,11 +175,12 @@ class FruitCollectionTrain(FruitCollection):
 
                     # update target model
                     if step_counter % self.dqn.params['target_network_update_frequency'] == 0:
-                        print('\n' + '–' * 50)
-                        print('update after',
-                              self.dqn.params['target_network_update_frequency'], 'steps')
-                        print('–' * 50)
                         self.dqn.update_target_model(soft=False, beta=0.8)
+                        if verbose:
+                            print('\n' + '–' * 50)
+                            print('update after',
+                                  self.dqn.params['target_network_update_frequency'], 'steps')
+                            print('–' * 50)
 
                     if t == self.dqn.num_steps - 1:
                         terminated = True
@@ -200,8 +203,9 @@ class FruitCollectionTrain(FruitCollection):
 @click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
 @click.option('--simple/--no-simple', '-s/-ns', default=True, help='uses simple DQN network')
 @click.option('--render/--no-render', '-r/-nr', default=False, help='render the pygame')
-def run(warmstart, simple, render):
-    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render)
+@click.option('--testing/--no-testing', '-t/-nt', default=False, help='test the network')
+def run(warmstart, simple, render, testing):
+    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing)
     fct.main(verbose=False)
 
 if __name__ == '__main__':
