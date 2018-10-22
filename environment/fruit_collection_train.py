@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.0
+@version: 2.1.0
 
 #############################################################################################
 
 History:
+- v2.0.1: implement click functionality
 - v2.0.0: update main function for better structure
 - v1.1.1: save reward output in textfile
 - v1.1.0: dqn input fixed -> working, overblow input image
@@ -57,7 +58,14 @@ np.set_printoptions(threshold=np.nan)
 
 
 class FruitCollectionTrain(FruitCollection):
-    def __init__(self):
+    def __init__(self, warmstart=False, simple=True):
+        print('–'*100)
+        print('–'*100)
+        print('Warmstart:\t', warmstart)
+        print('Simple:\t', simple)
+        print('–'*100)
+        print('–'*100)
+
         self.env = FruitCollectionMini(rendering=False, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
         self.env.render()
 
@@ -66,8 +74,8 @@ class FruitCollectionTrain(FruitCollection):
         self.input_dim = (10, 10)  # (img_height, img_width)
         self.mc = misc
         self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=self.env.nb_actions,
-                                warmstart=False, warmstart_path='/home/mae-ma/git/safety', 
-                                simple_dqn=True, name='DQN')
+                                warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
+                                simple_dqn=simple, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -111,12 +119,9 @@ class FruitCollectionTrain(FruitCollection):
                 self.mini_target[self.possible_fruits.index(f)] = True
 
 
-#    @click.command()
-#    @click.option('--warmstart', '-w', help='load the network weights')
-#    @click.option('--simple', '-s', default=True, help='uses simple DQN network')
     def main(self, verbose=False):
         reward = []
-        counter = 0
+        step_counter = 0
         for epoch in range(self.dqn.num_epochs):
 
             for episode in range(self.dqn.num_episodes):
@@ -132,7 +137,7 @@ class FruitCollectionTrain(FruitCollection):
                         action = np.random.choice(self.env.legal_actions)
                     else:
                         action = self.dqn.act(states[-1])
-                        self.dqn.calc_eps_decay(step_counter=counter)
+                        self.dqn.calc_eps_decay(step_counter=step_counter)
                     obs, r, terminated, info = self.env.step(action)
                     state_low = obs[2, ...]
                     # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
@@ -154,7 +159,7 @@ class FruitCollectionTrain(FruitCollection):
 
                     self.env.render()
                     # increase step counter
-                    counter += 1
+                    step_counter += 1
 
                     if verbose:
                         print("\033[2J\033[H\033[2J", end="")
@@ -178,19 +183,24 @@ class FruitCollectionTrain(FruitCollection):
                         self.dqn.save_weights(path='weights.h5')
                         print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
                               format(episode, self.dqn.num_episodes, epoch,
-                                     self.dqn.num_epochs, rew, self.dqn.epsilon, counter))
-                        reward.append((rew, counter))
+                                     self.dqn.num_epochs, rew, self.dqn.epsilon, step_counter))
+                        reward.append((rew, step_counter))
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
                     # update target model
-                    if counter % self.dqn.params['target_network_update_frequency'] == 0:
+                    if step_counter % self.dqn.params['target_network_update_frequency'] == 0:
                         print('\n' + '–' * 50)
                         print('update')
                         print('–' * 50)
                         self.dqn.update_target_model()
 
+@click.command()
+@click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
+@click.option('--simple/--no-simple', '-s/-ns', default=True, help='uses simple DQN network')
+def run(warmstart, simple):
+    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple)
+    fct.main(verbose=False)
 
 if __name__ == '__main__':
-    fct = FruitCollectionTrain()
-    fct.main(verbose=False)
+    run()
