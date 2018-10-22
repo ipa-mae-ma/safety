@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.3
+@version: 2.1.0
 
 #############################################################################################
 
 History:
+- v2.1.0: rename of variables / use of different flags
 - v2.0.3: add more terminal flags
 - v2.0.2: add bool for rendering
 - v2.0.1: implement click functionality
@@ -72,13 +73,19 @@ class FruitCollectionTrain(FruitCollection):
         self.env.render()
 
         self.testing = testing
+        self.simple = simple
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
         self.input_dim = (10, 10)  # (img_height, img_width)
+        if self.simple:
+            self.input_dim = (10, 10)  # (img_height, img_width)
+        else:
+            self.input_dim = (self.input_dim[0] * self.overblow_factor,
+                            self.input_dim[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
         self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=self.env.nb_actions,
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
-                                simple_dqn=simple, name='DQN')
+                                simple_dqn=self.simple, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -132,10 +139,10 @@ class FruitCollectionTrain(FruitCollection):
                 rew = 0
                 framerate = 100
                 sleep_sec = 1 / framerate
-                for t in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
+                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
                     # fix framerate
                     time.sleep(sleep_sec)
-                    if t == 0:
+                    if step == 0:
                         action = np.random.choice(self.env.legal_actions)
                     else:
                         action = self.dqn.act(states[-1])
@@ -144,20 +151,21 @@ class FruitCollectionTrain(FruitCollection):
                     state_low = obs[2, ...]
                     # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
                     # state = state_high.reshape(input_dim)
-                    # append grayscale image to state list
-                    # states.append(self.mc.make_frame(obs, do_overblow=True, overblow_factor=self.overblow_factor))
-                    states.append(self.mc.make_frame(obs, do_overblow=False, 
+                    if self.simple:
+                        states.append(self.mc.make_frame(obs, do_overblow=False, 
                                                      overblow_factor=self.overblow_factor)
                                                      .flatten().reshape(-1, 100))
+                    else:
+                        # append grayscale image to state list
+                        states.append(self.mc.make_frame(obs, do_overblow=True, 
+                                                        overblow_factor=self.overblow_factor)[np.newaxis,..., np.newaxis])
+                    
                     # states.append(state)
-                    if t >= 1:
+                    if step >= 1:
                         state_t = states[-2]
                         state_t1 = states[-1]
                         self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
                         self.dqn.do_training(is_testing=self.testing)
-
-                    # if r != 0:
-                    #     self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
 
                     self.env.render()
                     # increase step counter
@@ -182,16 +190,16 @@ class FruitCollectionTrain(FruitCollection):
                                   self.dqn.params['target_network_update_frequency'], 'steps')
                             print('–' * 50)
 
-                    if t == self.dqn.num_steps - 1:
+                    if step == self.dqn.num_steps - 1:
                         terminated = True
                     if terminated is False:
                         rew += r
                     if terminated is True:
                         rew += r
-                        # self.dqn.do_training(is_testing=False)
+                        # self.dqn.do_training(is_testing=self.testing)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
-                        print('episode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
+                        print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
                               format(episode, self.dqn.num_episodes, epoch,
                                      self.dqn.num_epochs, rew, self.dqn.epsilon, step_counter))
                         reward.append((rew, step_counter))
