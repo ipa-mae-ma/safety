@@ -252,8 +252,8 @@ class DeepQNetwork:
         """
         update the target model with the weights from the trained model
         Input:
-            soft (bool):
-            beta (float):
+            soft (bool): use soft update
+            beta (float): factor for soft update
         """
         if soft:
             weights = beta * self.target_model.get_weights() + (1 - beta) * self.model.get_weights()
