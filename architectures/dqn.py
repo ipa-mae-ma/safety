@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.0
+@version: 1.4.2
 
 #############################################################################################
 
 History:
+- v1.4.2: implement soft update for target weights
+- v1.4.1: save model to "model.yml" file
 - v1.4.0: use tf cpp backend to perform training -> faster
 - v1.3.1: remove log file at beginning of training
 - v1.3.0: add warmstart function and simple neural net option
@@ -136,8 +138,8 @@ class DeepQNetwork:
         self.target_model = self._build_network()
         print(Font.yellow + '–' * 100 + Font.end)
         print('Save model as "model.yml"')
-        with open('model.yaml', 'w'):
-            yaml.safe_dump(self.model_yaml)
+        with open('model.yml', 'w') as file:
+            file.write(self.model_yaml)
         print(Font.yellow + '–' * 100 + Font.end)
         self.warmstart_flag = warmstart
         if self.warmstart_flag:
@@ -246,11 +248,18 @@ class DeepQNetwork:
         # pbar.close()
         self.episode_num = 0
 
-    def update_target_model(self) -> None:
+    def update_target_model(self, soft=False, beta:float=0.8) -> None:
         """
         update the target model with the weights from the trained model
+        Input:
+            soft (bool):
+            beta (float):
         """
-        self.target_model.set_weights(self.model.get_weights())
+        if soft:
+            weights = beta * self.target_model.get_weights() + (1 - beta) * self.model.get_weights()
+            self.target_model.set_weights(weights)
+        else:
+            self.target_model.set_weights(self.model.get_weights())
 
     def act(self, state) -> int:
         """
