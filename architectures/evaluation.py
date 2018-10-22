@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.1
+@version: 1.2.0
 
 #############################################################################################
 
 History:
+- v1.2.0: use smoothed score output for better visualization
 - v1.1.1: use relative paths
 - v1.1.0: add click commands
 - v1.0.0: first init
