@@ -134,6 +134,11 @@ class DeepQNetwork:
         self.model_yaml = None
         self.model = self._build_network()
         self.target_model = self._build_network()
+        print(Font.yellow + '–' * 100 + Font.end)
+        print('Save model as "model.yml"')
+        with open('model.yaml', 'w'):
+            yaml.safe_dump(self.model_yaml)
+        print(Font.yellow + '–' * 100 + Font.end)
         self.warmstart_flag = warmstart
         if self.warmstart_flag:
             self.warmstart(warmstart_path)
@@ -157,7 +162,7 @@ class DeepQNetwork:
             # model = keras.Model(inputs=inputs, outputs=outputs)
             
             # use input_dim NOT input_shape
-            model.add(keras.layers.Dense(100, input_dim=self.input_dim,
+            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Flatten())
             # hidden layer
