@@ -5,11 +5,20 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 2.1.0
 
 #############################################################################################
 
 History:
+- v2.1.0: rename of variables / use of different flags
+- v2.0.3: add more terminal flags
+- v2.0.2: add bool for rendering
+- v2.0.1: implement click functionality
+- v2.0.0: update main function for better structure
+- v1.1.1: save reward output in textfile
+- v1.1.0: dqn input fixed -> working, overblow input image
+- v1.0.2: first dqn test
+- v1.0.1: extend path to find other packages
 - v1.0.0: first init
 """
 
@@ -18,14 +27,25 @@ from copy import deepcopy
 import pygame
 import numpy as np
 import time
+import yaml
+import click
+import tqdm
 # or FruitCollectionLarge or FruitCollectionMini
-from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge
+from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 
+###############################
+# Necessary to import packages from different folders
+###############################
+import sys
+import os
+sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 # architectures
 ############################
 from architectures.a3c import AsynchronousAdvantageActorCritic
 from architectures.hra import HybridRewardArchitecture
+from architectures.dqn import DeepQNetwork
+import architectures.misc as misc
 ############################
 
 ############################
@@ -37,8 +57,38 @@ RED = (255, 0, 0)
 BLUE = (0, 100, 255)
 WALL = (80, 80, 80)
 ############################
+np.set_printoptions(threshold=np.nan)
+
 
 class FruitCollectionTrain(FruitCollection):
+    def __init__(self, warmstart=False, simple=True, render=False, testing=False):
+        print('–'*100)
+        print('–'*100)
+        print('Warmstart:\t', warmstart)
+        print('Simple:\t\t', simple)
+        print('–'*100)
+        print('–'*100)
+
+        self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
+        self.env.render()
+
+        self.testing = testing
+        self.simple = simple
+        # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
+        self.overblow_factor = 8
+        self.input_dim = (10, 10)  # (img_height, img_width)
+        if self.simple:
+            self.input_dim = (10, 10)  # (img_height, img_width)
+        else:
+            self.input_dim = (self.input_dim[0] * self.overblow_factor,
+                            self.input_dim[1] * self.overblow_factor)  # (img_height, img_width)
+        self.mc = misc
+        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=self.env.nb_actions,
+                                warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
+                                simple_dqn=self.simple, name='DQN')
+        self.a3c = AsynchronousAdvantageActorCritic()
+        self.hra = HybridRewardArchitecture()
+
     def init_with_mode(self):
         self.is_ghost = False
         self.is_fruit = True
@@ -78,28 +128,93 @@ class FruitCollectionTrain(FruitCollection):
                 self.active_fruits[idx] = True
                 self.mini_target[self.possible_fruits.index(f)] = True
 
-    def main(self):
+
+    def main(self, verbose=False):
         reward = []
-        env = FruitCollectionLarge(rendering=True, lives=1, is_fruit=True, is_ghost=True, image_saving=False)
-        env.reset()
-        env.render()
+        step_counter = 0
+        for epoch in range(self.dqn.num_epochs):
+            for episode in range(self.dqn.num_episodes):
+                states = []
+                self.env.reset()
+                rew = 0
+                framerate = 100
+                sleep_sec = 1 / framerate
+                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
+                    # fix framerate
+                    time.sleep(sleep_sec)
+                    if step == 0:
+                        action = np.random.choice(self.env.legal_actions)
+                    else:
+                        action = self.dqn.act(states[-1])
+                        self.dqn.calc_eps_decay(step_counter=step_counter)
+                    obs, r, terminated, info = self.env.step(action)
+                    state_low = obs[2, ...]
+                    # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
+                    # state = state_high.reshape(input_dim)
+                    if self.simple:
+                        states.append(self.mc.make_frame(obs, do_overblow=False, 
+                                                     overblow_factor=self.overblow_factor)
+                                                     .flatten().reshape(-1, 100))
+                    else:
+                        # append grayscale image to state list
+                        states.append(self.mc.make_frame(obs, do_overblow=True, 
+                                                        overblow_factor=self.overblow_factor)[np.newaxis,..., np.newaxis])
+                    
+                    # states.append(state)
+                    if step >= 1:
+                        state_t = states[-2]
+                        state_t1 = states[-1]
+                        self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
+                        self.dqn.do_training(is_testing=self.testing)
 
-        a3c = AsynchronousAdvantageActorCritic()
-        hra = HybridRewardArchitecture()
+                    self.env.render()
+                    # increase step counter
+                    step_counter += 1
 
-        for _ in range(50):
-            action = np.random.choice(env.legal_actions)
-            obs, r, terminated, info = env.step(action)
-            env.render()
-            if terminated == False:
-                reward.append(r)
-            time.sleep(.01)
-            if terminated == True:
-                print(sum(reward))
-                reward = []
-                self.main()
+                    if verbose:
+                        print("\033[2J\033[H\033[2J", end="")
+                        print()
+                        print('pos: ', self.env.player_pos_x, self.env.player_pos_y)
+                        print('reward: ', r)
+                        print('state:')
+                        print(state_low)
+                        print('─' * 30)
+                        print('─' * 30)
 
+                    # update target model
+                    if step_counter % self.dqn.params['target_network_update_frequency'] == 0:
+                        self.dqn.update_target_model(soft=False, beta=0.8)
+                        if verbose:
+                            print('\n' + '–' * 50)
+                            print('update after',
+                                  self.dqn.params['target_network_update_frequency'], 'steps')
+                            print('–' * 50)
+
+                    if step == self.dqn.num_steps - 1:
+                        terminated = True
+                    if terminated is False:
+                        rew += r
+                    if terminated is True:
+                        rew += r
+                        # self.dqn.do_training(is_testing=self.testing)
+                        self.dqn.save_buffer(path='replay_buffer.pkl')
+                        self.dqn.save_weights(path='weights.h5')
+                        print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
+                              format(episode, self.dqn.num_episodes, epoch,
+                                     self.dqn.num_epochs, rew, self.dqn.epsilon, step_counter))
+                        reward.append((rew, step_counter))
+                        with open('reward.yml', 'w') as f:
+                            yaml.dump(reward, f)
+                        break
+
+@click.command()
+@click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
+@click.option('--simple/--no-simple', '-s/-ns', default=True, help='uses simple DQN network')
+@click.option('--render/--no-render', '-r/-nr', default=False, help='render the pygame')
+@click.option('--testing/--no-testing', '-t/-nt', default=False, help='test the network')
+def run(warmstart, simple, render, testing):
+    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing)
+    fct.main(verbose=False)
 
 if __name__ == '__main__':
-    fct = FruitCollectionTrain()
-    fct.main()
+    run()

@@ -5,11 +5,18 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.1
+@version: 1.1.0
 
 #############################################################################################
 
 History:
+- v1.1.0: update:
+        - 'eps_greedy' function for output of neural net
+        - add new funtions:
+            - 'rgb2grayscale' to generate a grayscale int values from RGB tuple
+            - 'make_frame' to stack observations to input frame for NN
+- v1.0.2: add function:
+        - overblow to increase the size of an array for a factor
 - v1.0.1: add functions:
         - policy_iteration
         - compute_qpi
@@ -19,44 +26,64 @@ History:
 
 import numpy as np
 
+class Font:
+    purple = '\033[95m'
+    cyan = '\033[96m'
+    darkcyan = '\033[36m'
+    blue = '\033[94m'
+    green = '\033[92m'
+    yellow = '\033[93m'
+    red = '\033[91m'
+    bgblue = '\033[44m'
+    bold = '\033[1m'
+    underline = '\033[4m'
+    end = '\033[0m'
 
-def plot_map(Vs_VI, pis_VI):
+def plot_map(Vs_VI, pis_VI, env, pdf_name):
     """
     Inputs:
-        Vs_VI: list of values for given state
-        pis_VI: list of action to chose for given policy
+        Vs_VI: np array of values
+        pis_VI: np array of actions
+        env: gym environment constructor
+        pdf_name: name of the output pdf
     Outputs:
         -
     This illustrates the progress of value iteration.
     Your optimal actions are shown by arrows.
     At the bottom, the value of the different states are plotted.
     """
-    for (V, pi) in zip(Vs_VI[:10], pis_VI[:10]):
-        plt.figure(figsize=(3, 3))
-        plt.imshow(V.reshape(4, 4), cmap='gray', interpolation='none', clim=(0, 1))
-        ax = plt.gca()
-        ax.set_xticks(np.arange(4) - .5)
-        ax.set_yticks(np.arange(4) - .5)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        Y, X = np.mgrid[0:4, 0:4]
-        a2uv = {0: (-1, 0), 1: (0, -1), 2: (1, 0), 3: (-1, 0)}
-        Pi = pi.reshape(4, 4)
-        for y in range(4):
-            for x in range(4):
-                a = Pi[y, x]
-                u, v = a2uv[a]
-                plt.arrow(x, y, u * .3, -v * .3, color='m', head_width=0.1, head_length=0.1)
-                plt.text(x, y, str(env.desc[y, x].item().decode()),
-                         color='g', size=12,  verticalalignment='center',
-                         horizontalalignment='center', fontweight='bold')
-        plt.grid(color='b', lw=2, ls='-')
-    plt.figure()
-    plt.plot(Vs_VI)
-    plt.title("Values of different states")
+    from matplotlib import pyplot as plt
+
+    # TODO: update plots to support variable grids --> no hardcoded grid
+
+    # for (V, pi) in zip(Vs_VI[:10], pis_VI[:10]):
+    V = Vs_VI[-1]
+    pi = pis_VI[-1]
+    plt.figure(figsize=(3, 3))
+    plt.imshow(V.reshape(4, 4), cmap='gray', interpolation='none', clim=(0, 1))
+    ax = plt.gca()
+    ax.set_xticks(np.arange(4) - .5)
+    ax.set_yticks(np.arange(4) - .5)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    Y, X = np.mgrid[0:4, 0:4]
+    a2uv = {0: (-1, 0), 1: (0, -1), 2: (1, 0), 3: (-1, 0)}
+    Pi = pi.reshape(4, 4)
+    for y in range(4):
+        for x in range(4):
+            a = Pi[y, x]
+            u, v = a2uv[a]
+            plt.arrow(x, y, u * .3, -v * .3, color='m', head_width=0.1, head_length=0.1)
+            plt.text(x, y, str(env.desc[y, x].item().decode()),
+                     color='g', size=12,  verticalalignment='bottom',
+                     horizontalalignment='center', fontweight='bold')
+            plt.text(x, y, str(np.round(V.reshape(4, 4)[y, x], 2)), color='r', size=8,
+                     verticalalignment='top', horizontalalignment='center')
+    plt.grid(color='b', lw=2, ls='-')
+    plt.savefig(pdf_name)
 
 
-def value_iteration(mdp, gamma, nIt):
+def value_iteration(mdp, gamma, nIt) -> (list, list):
     """
     Inputs:
         mdp: MDP
@@ -113,7 +140,7 @@ def value_iteration(mdp, gamma, nIt):
 
 
 def compute_vpi(pi, mdp, gamma):
-    """
+    r"""
     Inputs:
         pi: Policy pi
         mdp: MDP
@@ -192,7 +219,7 @@ def policy_iteration(mdp, gamma, nIt):
     return Vs, pis
 
 
-def q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward):
+def tabular_q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, reward):
     """
     Inputs:
         gamma: discount factor
@@ -208,20 +235,96 @@ def q_learning_update(gamma, alpha, q_vals, cur_state, action, next_state, rewar
     q_vals[cur_state][action] = (1 - alpha) * q_vals[cur_state][action] + alpha * target
 
 
-def eps_greedy(q_vals, eps, state):
+def eps_greedy(q_vals, eps, rng: np.random.seed()) -> int:
     """
     Inputs:
         q_vals: q value tables
         eps: epsilon
-        state: current state
+        rng (np.random.seed): random nummber generator
     Outputs:
-        random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
+        action (int): random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
     """
     # you might want to use random.random() to implement random exploration
     #   number of actions can be read off from len(q_vals[state])
-    import random
-    if random.random() <= eps:
-        action = random.randint(0, len(q_vals[state]) - 1)
+    # import random
+    if rng.rand() <= eps:
+    # if random.random() <= eps:
+        # np.random(0, 4) -> x \in [0,3]
+        action = rng.randint(0, len(q_vals))
+        # random.randint(0, 4) -> x \in [0,4]
+        # action = random.randint(0, len(q_vals[state]) - 1)
     else:
-        action = np.argmax(q_vals[state])
+        action = np.argmax(q_vals)
     return action
+
+
+def to_one_hot(x, len):
+    one_hot = np.zeros(len)
+    one_hot[x] = 1
+    return one_hot
+
+def overblow(input_array, factor: int) -> np.array:
+    """
+    increase the size of the input array by a factor
+    Input:
+        input_array (np.array): array to increase
+        factor (int): factor with which the input array is increased
+    Output:
+        out (np.array): increased array with out.shape = input_dim.shape * factor
+    """
+    output_r = input_array.shape[0] * factor
+    output_c = input_array.shape[1] * factor
+    filter = np.ones((factor, factor))
+    out = np.array([_ for _ in range(output_r * output_c)]).reshape(output_r, output_c)
+    row_i = 0
+    for rows in range(input_array.shape[0]):
+        row_j = 0
+        for columns in range(input_array.shape[1]):
+            v = np.multiply(input_array[rows, columns], filter)
+            # print(v)
+            out[row_i: row_i + factor, row_j: row_j + factor] = v
+            row_j += factor
+        row_i += factor
+    return out
+
+
+def rgb2grayscale(color, normalization=False):
+    """
+    returns the grayscale value for a RGB color tuple
+    using formula Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
+    """
+    if normalization:
+        return (0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]) / 255
+    else:
+        return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+
+
+
+def make_frame(observation, do_overblow=True, overblow_factor=8):
+    """
+    make grayscale frame out of the observation channels
+    Input:
+        observation (np.array): observation frame of size (4,...)
+        overblow (bool): should the output frame be overblown or not
+        overblow_factor (int): factor for change of dimensions
+    Output:
+        frame (np.array): grayscale frame array with dim (observation.shape)
+    """
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    RED = (255, 0, 0)
+    BLUE = (0, 100, 255)
+    WALL = (80, 80, 80)
+    frame = np.zeros(shape=observation[0, ...].shape, dtype=np.float32)
+    # wall
+    frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=False)
+    # fruit
+    frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=False)
+    # pacman
+    frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=False)
+    # ghosts
+    frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=False)
+    if do_overblow:
+        frame = overblow(input_array=frame, factor=overblow_factor)
+    # frame dim = (obs.shape)
+    return frame

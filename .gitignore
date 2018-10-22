@@ -11,3 +11,6 @@ __pycache__
 *.npy
 *render*
 .pytest_cache
+reward.yml
+*results*
+model.yml

@@ -356,7 +356,8 @@ class FruitCollection(object):
     def step(self, action):
         # actions: [0, 1, 2, 3] == [up, down, left, right]
         if self.game_over:
-            raise ValueError('Environment has already been terminated.')
+            self.reset()
+            # raise ValueError('Environment has already been terminated.')
         if self.step_id >= self.game_length - 1:
             self.game_over = True
             if self.state_mode == 'mini':
@@ -435,6 +436,7 @@ class FruitCollection(object):
             pygame.image.save(self.screen, self.render_dir + '/render' + str(self.step_id) + '.jpg')
         else:
             raise ValueError('env.rendering is False and/or environment has not been reset.')
+
 
 
 class FruitCollectionSmall(FruitCollection):
@@ -636,6 +638,11 @@ def test(mode, fruit, ghost, save):
             print('─' * 30)
             print(obs)
             print('─' * 30)
+            print('term: ', term)
+            print(np.add(obs[0, ...], obs[1, ...]))
+            print('─' * 30)
+            # capture screen as image
+            # pygame.image.save(env.screen, 'screen.jpg')
 
 
 if __name__ == '__main__':

@@ -4,16 +4,19 @@ channels:
   - cogsci
 dependencies:
     - python>=3.5
-    - ipython
     - click
     - numpy
-    - Tensorflow
-    - Theano
+    - tensorflow-gpu==1.9
     - pandas
     - matplotlib
     - h5py
     - pytest
+    - tqdm
+    # - tensorflow==1.9
+    # - ipython
+    # - Theano
     - pip:
         - gym==0.9.2
         - pygame
-        - keras==1.2
+        - pyyaml
+        # - keras==1.2
