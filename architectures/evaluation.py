@@ -99,22 +99,25 @@ class Evaluation:
         csv_path = os.path.join(os.getcwd(), 'training_log_DQN.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
         smoothed = smooth(self.csv[:, 2], 31)
+        
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='loss')
-        ax1.legend()
-        ax1.grid()
         ax1.set_ylabel('Loss')
-        ax1.set_xlabel('Replays')
+        # ax1.set_xlabel('Replays')
 
-        # ax2 = ax1.twinx()
         score_value = [x[0] for x in self.yml]
         score_time = [x[1] for x in self.yml]
-        ax2.plot(score_time, score_value, 'r', label='scores')
+        ax2.plot(score_time, smooth(np.array(score_value), 11)[:-10], 'r', label='scores')
+        # ax2.plot(score_time, score_value, 'g', label='scores')
         ax2.set_xlabel('Sum of steps')
         ax2.set_ylabel('Scores')
+        ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+        ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax2.legend()
+        ax1.legend()
         ax2.grid()
+        ax1.grid()
         fig.tight_layout()
         plt.savefig('loss.pdf')
         plt.show()
