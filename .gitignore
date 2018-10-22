@@ -12,3 +12,4 @@ __pycache__
 *render*
 .pytest_cache
 reward.yml
+*results*
