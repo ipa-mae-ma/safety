@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.2
+@version: 1.5.0
 
 #############################################################################################
 
 History:
+- v1.5.0: update convnet to work with batches of np.arrays
 - v1.4.2: implement soft update for target weights
 - v1.4.1: save model to "model.yml" file
 - v1.4.0: use tf cpp backend to perform training -> faster
@@ -36,24 +37,17 @@ import os
 import yaml
 import pydot
 import graphviz
-# import time
-# import click
-# import gym
-# import logger
 import tensorflow as tf
 from tensorflow import keras
 import tqdm
 
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
-# from architectures.mdp import MDP
 from architectures.misc import Font
-# from architectures.wrappers import NoopResetEnv, EpisodicLifeEnv
 
 # tf.enable_eager_execution()
 
 # TODO: compare output of network after training with pyplot
-# TODO: update _replay to use array batches instead of loop
 
 class DeepQNetwork:
     def __init__(self,
@@ -121,7 +115,6 @@ class DeepQNetwork:
         self.num_steps = self.params['num_steps']
         # debug flag
         self.debug = False
-        self.history = None
 
         # self.fps = 0
         self.episode_num = 0
@@ -166,6 +159,7 @@ class DeepQNetwork:
             # use input_dim NOT input_shape
             model.add(keras.layers.Dense(250, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Dense(500, activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Flatten())
             # hidden layer
             # model.add(keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform'))
@@ -179,7 +173,8 @@ class DeepQNetwork:
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
                                                                 momentum=self.params['gradient_momentum']),
-                            loss='categorical_crossentropy',
+                            # loss='categorical_crossentropy',
+                            loss='mean_squared_error',
                             metrics=['accuracy'])
             if self.debug:
                 print(Font.yellow + '–' * 100 + Font.end)
@@ -190,7 +185,7 @@ class DeepQNetwork:
         else:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
-            model.add(keras.layers.Conv2D(input_shape=self.input_dim, batch_size=1, filters=32,
+            model.add(keras.layers.Conv2D(input_shape=self.input_dim, filters=32,
                                             kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
             # second hidden layer
             model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
@@ -202,6 +197,7 @@ class DeepQNetwork:
             model.add(keras.layers.Dense(512, activation='relu'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            self.model_yaml = model.to_yaml()
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
@@ -228,22 +224,23 @@ class DeepQNetwork:
         self.target_model.load_weights(os.path.join(path, 'target_weights.h5'))
 
 
-    def do_training(self, is_learning=True, is_testing=True):
+    def do_training(self, is_testing=False):
         """
         train DQN algorithm with replay buffer and minibatch
+        Input:
+            is_testing (bool): evaluation of the network
         """
         num_episodes = self.num_episodes
         # pbar = tqdm.tqdm(total=num_episodes, unit='Episodes', ncols=100)
         while self.episode_num < 1:
             # print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
             #    end='\n')
-            if is_learning:
+            if not is_testing:
                 # pbar.update(1)
                 self._replay(batch_size=self.minibatch_size)
                 self.episode_num += 1
 
             if is_testing:
-                # TODO: implement testing output
                 pass
         # pbar.close()
         self.episode_num = 0
@@ -356,18 +353,30 @@ class DeepQNetwork:
         state_a, action_a, reward_a, next_state_a, done_a = minibatch
         ACTION, REWARD, DONE = 0, 1, 2
 
-        state_input = np.zeros((batch_size, 100))
-        next_state_input = np.zeros((batch_size, 100))
-        action, reward, done = [], [], []
+
+        if self.simple_dqn:
+            state_input = np.zeros((batch_size, 100))
+            next_state_input = np.zeros((batch_size, 100))
+            action, reward, done = [], [], []
+            state_input = state_a[:, 0, :]
+            next_state_input = next_state_a[:, 0, :]
+        else:
+            dim = (batch_size, ) + self.input_dim
+            state_input = np.zeros(dim)
+            next_state_input = np.zeros(dim)
+            # state_a.shape = (batch_size, 1, height, width, n_channels)
+            state_input = state_a[:, 0, ...]
+            # next_state_a.shape = (batch_size, 1, height, width, n_channels)
+            next_state_input = next_state_a[:, 0, ...]
+            action, reward, done = [], [], []
 
         if self.debug:
             print(Font.yellow + '–' * 100 + Font.end)
+            print('input dim: ', self.input_dim)
             print('state_a shape: ', state_a.shape)
             print('update input shape: ', state_input.shape)
             print(Font.yellow + '–' * 100 + Font.end)
 
-        state_input = state_a[:, 0, :]
-        next_state_input = next_state_a[:, 0, :]
         for i in range(batch_size):
             action.append(action_a[i])
             reward.append(reward_a[i])
@@ -376,7 +385,12 @@ class DeepQNetwork:
         y = self.model.predict(state_input)
         y_target = self.target_model.predict(next_state_input)
 
+
         for i in range(batch_size):
+            if self.debug:
+                print('y[i][action[i]]:', y[i][action[i]])
+                print('reward[i]:', reward[i])
+                print('y_target[i]:', y_target[i])
             if done[i]:
                 y[i][action[i]] = reward[i]
             else:
