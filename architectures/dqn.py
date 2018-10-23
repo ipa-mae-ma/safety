@@ -73,7 +73,7 @@ class DeepQNetwork:
             name (str, optional): TF Graph will be built under this name
         """
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        cfg_file = os.path.join(dir_path, 'config_dqn.yaml')
+        cfg_file = os.path.join(dir_path, 'config_dqn.yml')
         self.params = yaml.safe_load(open(cfg_file, 'r'))
 
         nprs = np.random.RandomState
@@ -155,13 +155,15 @@ class DeepQNetwork:
             # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
             # model = keras.Model(inputs=inputs, outputs=outputs)
             
-            # use input_dim NOT input_shape
-            model.add(keras.layers.Dense(50, input_dim=self.input_dim,
+            # use input_dim instead of input_shape | dim=100 => shape=(100,) are equal
+            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
                                             activation='relu', kernel_initializer='he_uniform'))
-            # model.add(keras.layers.Dense(500, activation='relu', kernel_initializer='he_uniform'))
-            # model.add(keras.layers.Flatten())
-            # hidden layer
-            # model.add(keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Dropout(rate=0.2))
+            # model.add(keras.layers.Dense(700, activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Dropout(rate=0.2))
+            # # model.add(keras.layers.Flatten())
+            # # hidden layer
+            # model.add(keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim,
                                             activation='linear', kernel_initializer='he_uniform'))
@@ -195,6 +197,7 @@ class DeepQNetwork:
             model.add(keras.layers.Dense(512, activation='relu'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            model.summary()
             self.model_yaml = model.to_yaml()
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
@@ -238,7 +241,7 @@ class DeepQNetwork:
                 self.episode_num += 1
 
             if is_testing:
-                pass
+                break
         # pbar.close()
         self.episode_num = 0
 
