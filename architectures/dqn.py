@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.5.1
+@version: 1.5.2
 
 #############################################################################################
 
 History:
+- v1.5.2: act returns also predicted q_value
 - v1.5.1: use only mean-squared-error as loss
 - v1.5.0: update convnet to work with batches of np.arrays
 - v1.4.2: implement soft update for target weights
@@ -123,11 +124,13 @@ class DeepQNetwork:
         self.eval_steps = []
         self.eval_scores = []
         self.env = env
-
         self.name = name
         self.model_yaml = None
         self.model = self._build_network()
         self.target_model = self._build_network()
+
+        self.loss = [0.0 for _ in self.model.metrics_names]
+
         print(Font.yellow + '–' * 100 + Font.end)
         print('Save model as "model.yml"')
         with open('model.yml', 'w') as file:
@@ -156,10 +159,11 @@ class DeepQNetwork:
             # model = keras.Model(inputs=inputs, outputs=outputs)
             
             # use input_dim instead of input_shape | dim=100 => shape=(100,) are equal
-            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            # model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            model.add(keras.layers.Dense(250, input_shape=(100,),
                                             activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Dropout(rate=0.2))
-            # model.add(keras.layers.Dense(700, activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Dense(20, activation='relu', kernel_initializer='he_uniform'))
             # model.add(keras.layers.Dropout(rate=0.2))
             # # model.add(keras.layers.Flatten())
             # # hidden layer
@@ -258,17 +262,18 @@ class DeepQNetwork:
         else:
             self.target_model.set_weights(self.model.get_weights())
 
-    def act(self, state) -> int:
+    def act(self, state) -> (int, float):
         """
         return action from neural net
         Input:
             state (np.array): the current state as shape (img_height, img_width, 1)
         Output:
             action (int): action number
+            q_val (float): expected q_value
         """
         # state = state[np.newaxis, ...]
         if self.simple_dqn:
-            s = state
+            s = state.reshape((1,100))
             if self.debug:
                 print(Font.yellow + '–' * 100 + Font.end)
                 print(Font.yellow + 'DQN "act" fct here:' + Font.end)
@@ -284,7 +289,7 @@ class DeepQNetwork:
             print(Font.yellow + '–' * 100 + Font.end)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
         # return action
-        return action
+        return action, np.amax(q_vals[0])
 
     def calc_eps_decay(self, step_counter: int) -> None:
         """
@@ -352,8 +357,10 @@ class DeepQNetwork:
             state_input = np.zeros((batch_size, 100))
             next_state_input = np.zeros((batch_size, 100))
             action, reward, done = [], [], []
-            state_input = state_a[:, 0, :]
-            next_state_input = next_state_a[:, 0, :]
+            # state_input = state_a[:, 0, :]
+            # next_state_input = next_state_a[:, 0, :]
+            state_input = state_a
+            next_state_input = next_state_a
         else:
             dim = (batch_size, ) + self.input_dim
             state_input = np.zeros(dim)
@@ -368,7 +375,7 @@ class DeepQNetwork:
             print(Font.yellow + '–' * 100 + Font.end)
             print('input dim: ', self.input_dim)
             print('state_a shape: ', state_a.shape)
-            print('update input shape: ', state_input.shape)
+            print('input state shape: ', state_input.shape)
             print(Font.yellow + '–' * 100 + Font.end)
 
         for i in range(batch_size):
@@ -376,13 +383,16 @@ class DeepQNetwork:
             reward.append(reward_a[i])
             done.append(done_a[i])
 
-        y = self.model.predict(state_input)
-        y_target = self.target_model.predict(next_state_input)
+        # y = self.model.predict(state_input)
+        # y_target = self.target_model.predict(next_state_input)
+        y = self.model.predict_on_batch(state_input)
+        y_target = self.target_model.predict_on_batch(next_state_input)
 
 
         for i in range(batch_size):
             if self.debug:
                 print('y[i][action[i]]:', y[i][action[i]])
+                print('action[i]:', action[i])
                 print('reward[i]:', reward[i])
                 print('y_target[i]:', y_target[i])
             if done[i]:
@@ -390,6 +400,7 @@ class DeepQNetwork:
             else:
                 y[i][action[i]] = reward[i] + self.gamma * np.amax(y_target[i])
 
+        # self.loss = self.model.train_on_batch(state_input, y)
         self.model.fit(state_input, y, batch_size=batch_size,
                        epochs=1, verbose=0, callbacks=[self.csv_logger])
 
@@ -432,7 +443,6 @@ class DeepQNetwork:
         #    output = y
         #    self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
         #    # self.model.fit(state, target_f, epochs=1, verbose=0)
-        #    # TODO: return mean score and mean steps
         #    i += 1
 
     def main(self):
