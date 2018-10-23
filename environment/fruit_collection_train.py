@@ -105,33 +105,12 @@ class FruitCollectionTrain(FruitCollection):
         else:
             self.ghosts = []
 
-    def _reset_targets(self):
-        while True:
-            self.player_pos_x, self.player_pos_y = np.random.randint(0, self.scr_w), np.random.randint(0, self.scr_h)
-            if [self.player_pos_x, self.player_pos_y] not in self.possible_fruits + self.walls:
-                break
-        self.fruits = []
-        self.active_fruits = []
-        if self.is_fruit:
-            for x in range(self.scr_w):
-                for y in range(self.scr_h):
-                    self.fruits.append({'colour': BLUE, 'reward': self.reward_scheme['fruit'],
-                                        'location': [x, y], 'active': False})
-                    self.active_fruits.append(False)
-            fruits_idx = deepcopy(self.possible_fruits)
-            np.random.shuffle(fruits_idx)
-            fruits_idx = fruits_idx[:self.nb_fruits]
-            self.mini_target = [False] * len(self.possible_fruits)
-            for f in fruits_idx:
-                idx = f[1] * self.scr_w + f[0]
-                self.fruits[idx]['active'] = True
-                self.active_fruits[idx] = True
-                self.mini_target[self.possible_fruits.index(f)] = True
-
-
     def main(self, verbose=False):
         reward = []
         step_counter = 0
+        q_val = 0
+        loss = np.zeros((0,3))
+        Q_val = np.zeros((0,1))
         for epoch in range(self.dqn.num_epochs):
             for episode in range(self.dqn.num_episodes):
                 states = []
@@ -139,22 +118,21 @@ class FruitCollectionTrain(FruitCollection):
                 rew = 0
                 framerate = 100
                 sleep_sec = 1 / framerate
-                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
+
+                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes'):
                     # fix framerate
                     time.sleep(sleep_sec)
                     if step == 0:
                         action = np.random.choice(self.env.legal_actions)
                     else:
-                        action = self.dqn.act(states[-1])
+                        action, q_val = self.dqn.act(states[-1])
                         self.dqn.calc_eps_decay(step_counter=step_counter)
                     obs, r, terminated, info = self.env.step(action)
                     state_low = obs[2, ...]
-                    # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
-                    # state = state_high.reshape(input_dim)
+
                     if self.simple:
                         states.append(self.mc.make_frame(obs, do_overblow=False, 
-                                                     overblow_factor=self.overblow_factor)
-                                                     .flatten().reshape(-1, 100))
+                                                     overblow_factor=self.overblow_factor).reshape(100,))
                     else:
                         # append grayscale image to state list
                         states.append(self.mc.make_frame(obs, do_overblow=True, 
@@ -170,6 +148,12 @@ class FruitCollectionTrain(FruitCollection):
                     self.env.render()
                     # increase step counter
                     step_counter += 1
+                    
+                    loss = np.append(loss, np.array([[0,0,self.dqn.loss[0]]]), axis=0)
+                    Q_val = np.append(Q_val, np.array([[q_val]]), axis=0)
+                    if step_counter % 100 == 0:
+                        # np.savetxt('training_log_DQN.csv', loss, fmt='%.4f', delimiter=',')
+                        np.savetxt('q_val_DQN.csv', Q_val, fmt='%.4f', delimiter=',')
 
                     if verbose:
                         print("\033[2J\033[H\033[2J", end="")
