@@ -22,7 +22,7 @@ class FruitCollection(object):
         self.is_ghost = is_ghost
         self.legal_actions = [0, 1, 2, 3]
         self.action_meanings = ['up', 'down', 'left', 'right']
-        self.reward_scheme = {'ghost': -10.0, 'fruit': +1.0, 'step': 0.0, 'wall': 0.0}
+        self.reward_scheme = {'ghost': -10.0, 'fruit': +10.0, 'step': 0.0, 'wall': 0.0}
         self.nb_actions = len(self.legal_actions)
         if rng is None:
             self.rng = np.random.RandomState(1234)
