@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.1
+@version: 1.3.0
 
 #############################################################################################
 
 History:
+- v1.3.0: plot for q-vals
 - v1.2.1: change filenames
 - v1.2.0: use smoothed score output for better visualization
 - v1.1.1: use relative paths
@@ -120,7 +121,7 @@ class Evaluation:
         ax2.set_xlabel('Steps')
         ax2.set_ylabel('Scores')
         ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
-        # ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+        ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax2.legend()
         ax1.legend()
         ax2.grid()
@@ -136,15 +137,28 @@ class Evaluation:
             model + '.pdf'
         self.plot_filename = filename
         plt.savefig(filename)
-        plt.show()
+        # plt.show()
         print('–'*50)
+
+    def plot_q_vals(self):
+        csv_path = os.path.join(os.getcwd(), 'q_val_DQN.csv')
+        self.csv = np.genfromtxt(csv_path, delimiter=',')
+        smoothed = smooth(self.csv[:], 51)
+        fig, ax1 = plt.subplots(1, 1, figsize=(12, 12))
+        ax1.plot([_ for _ in range(len(smoothed))],
+                 smoothed, 'b', label='Q values')
+        ax1.set_ylabel('Q values')
+        ax1.set_xlabel('Steps')
+        plt.legend()
+        plt.grid()
+        plt.show()
 
     def save_all(self):
         print('–'*50)
         filelist = ['weights.h5', 'target_weights.h5',
                     'reward.yml', 'replay_buffer.pkl', 'training_log_DQN.csv',
                     self.plot_filename, 'architectures/config_dqn.yml', 'model.yml']
-        folder = datetime.datetime.today().strftime('%Y_%m_%d-%H_%M')
+        folder = datetime.datetime.today().strftime('%Y_%m_%d-%H_%M') + '___' + self.plot_filename
         folderpath = os.path.join(self.tgt_filepath, folder)
         print('Save all files to: ' + folderpath)
         if not os.path.exists(folderpath):
@@ -162,6 +176,7 @@ def main(plot, save):
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot()
+        ev.plot_q_vals()
     if save:
         ev.save_all()
 
