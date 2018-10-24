@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.1.0
+@version: 2.2.0
 
 #############################################################################################
 
 History:
+- v2.2.0: change reward
 - v2.1.0: rename of variables / use of different flags
 - v2.0.3: add more terminal flags
 - v2.0.2: add bool for rendering
@@ -72,13 +73,16 @@ class FruitCollectionTrain(FruitCollection):
         self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
         self.env.render()
 
+        self.env.reward_scheme = {'ghost': -10.0, 'fruit': +100.0, 'step': 0.0, 'wall': 0.0}
+
         self.testing = testing
         self.simple = simple
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (10, 10)  # (img_height, img_width)
+        self.input_dim = (self.env.scr_h, self.env.scr_w)  # (img_height, img_width)
+        # self.input_dim = (10, 10)  # (img_height, img_width)
         if self.simple:
-            self.input_dim = (10, 10)  # (img_height, img_width)
+            pass  # input dim = (img_height, img_width)
         else:
             self.input_dim = (self.input_dim[0] * self.overblow_factor,
                             self.input_dim[1] * self.overblow_factor)  # (img_height, img_width)
@@ -105,33 +109,12 @@ class FruitCollectionTrain(FruitCollection):
         else:
             self.ghosts = []
 
-    def _reset_targets(self):
-        while True:
-            self.player_pos_x, self.player_pos_y = np.random.randint(0, self.scr_w), np.random.randint(0, self.scr_h)
-            if [self.player_pos_x, self.player_pos_y] not in self.possible_fruits + self.walls:
-                break
-        self.fruits = []
-        self.active_fruits = []
-        if self.is_fruit:
-            for x in range(self.scr_w):
-                for y in range(self.scr_h):
-                    self.fruits.append({'colour': BLUE, 'reward': self.reward_scheme['fruit'],
-                                        'location': [x, y], 'active': False})
-                    self.active_fruits.append(False)
-            fruits_idx = deepcopy(self.possible_fruits)
-            np.random.shuffle(fruits_idx)
-            fruits_idx = fruits_idx[:self.nb_fruits]
-            self.mini_target = [False] * len(self.possible_fruits)
-            for f in fruits_idx:
-                idx = f[1] * self.scr_w + f[0]
-                self.fruits[idx]['active'] = True
-                self.active_fruits[idx] = True
-                self.mini_target[self.possible_fruits.index(f)] = True
-
-
     def main(self, verbose=False):
         reward = []
         step_counter = 0
+        q_val = 0
+        loss = np.zeros((0,3))
+        Q_val = np.zeros((0,1))
         for epoch in range(self.dqn.num_epochs):
             for episode in range(self.dqn.num_episodes):
                 states = []
@@ -139,22 +122,21 @@ class FruitCollectionTrain(FruitCollection):
                 rew = 0
                 framerate = 100
                 sleep_sec = 1 / framerate
-                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes', ncols=100):
+
+                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes'):
                     # fix framerate
                     time.sleep(sleep_sec)
                     if step == 0:
                         action = np.random.choice(self.env.legal_actions)
                     else:
-                        action = self.dqn.act(states[-1])
+                        action, q_val = self.dqn.act(states[-1])
                         self.dqn.calc_eps_decay(step_counter=step_counter)
                     obs, r, terminated, info = self.env.step(action)
                     state_low = obs[2, ...]
-                    # state_high = mc.overblow(input_array=state_low, factor=overblow_factor)
-                    # state = state_high.reshape(input_dim)
+
                     if self.simple:
                         states.append(self.mc.make_frame(obs, do_overblow=False, 
-                                                     overblow_factor=self.overblow_factor)
-                                                     .flatten().reshape(-1, 100))
+                                                     overblow_factor=self.overblow_factor).reshape(100,))
                     else:
                         # append grayscale image to state list
                         states.append(self.mc.make_frame(obs, do_overblow=True, 
@@ -170,6 +152,12 @@ class FruitCollectionTrain(FruitCollection):
                     self.env.render()
                     # increase step counter
                     step_counter += 1
+                    
+                    loss = np.append(loss, np.array([[0,0,self.dqn.loss[0]]]), axis=0)
+                    Q_val = np.append(Q_val, np.array([[q_val]]), axis=0)
+                    if step_counter % 100 == 0:
+                        # np.savetxt('training_log_DQN.csv', loss, fmt='%.4f', delimiter=',')
+                        np.savetxt('q_val_DQN.csv', Q_val, fmt='%.4f', delimiter=',')
 
                     if verbose:
                         print("\033[2J\033[H\033[2J", end="")
@@ -196,7 +184,6 @@ class FruitCollectionTrain(FruitCollection):
                         rew += r
                     if terminated is True:
                         rew += r
-                        # self.dqn.do_training(is_testing=self.testing)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
                         print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.

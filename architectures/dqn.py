@@ -5,11 +5,14 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.5.0
+@version: 2.0.0
 
 #############################################################################################
 
 History:
+- v2.0.0: working DQN, cleanup
+- v1.5.2: act returns also predicted q_value
+- v1.5.1: use only mean-squared-error as loss
 - v1.5.0: update convnet to work with batches of np.arrays
 - v1.4.2: implement soft update for target weights
 - v1.4.1: save model to "model.yml" file
@@ -35,19 +38,17 @@ from collections import deque
 import numpy as np
 import os
 import yaml
-import pydot
-import graphviz
 import tensorflow as tf
 from tensorflow import keras
 import tqdm
 
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
+from architectures.misc import printy
 from architectures.misc import Font
 
 # tf.enable_eager_execution()
 
-# TODO: compare output of network after training with pyplot
 
 class DeepQNetwork:
     def __init__(self,
@@ -73,8 +74,9 @@ class DeepQNetwork:
             simple (bool): use simplified DQN without conv_layers
             name (str, optional): TF Graph will be built under this name
         """
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        cfg_file = os.path.join(dir_path, 'config_dqn.yaml')
+        architecture_path = os.path.dirname(os.path.realpath(__file__))
+        safety_path = os.path.dirname(architecture_path)
+        cfg_file = os.path.join(architecture_path, 'config_dqn.yml')
         self.params = yaml.safe_load(open(cfg_file, 'r'))
 
         nprs = np.random.RandomState
@@ -98,13 +100,12 @@ class DeepQNetwork:
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
 
         # delete training log file in the beginning
-        # if os.path.exists(os.path.join(os.path.dirname(__file__), 'training_log_DQN.csv')):
-        if os.path.exists(os.path.join('/home/mae-ma/git/safety', 'training_log_DQN.csv')):
+        if os.path.exists(os.path.join(safety_path, 'training_log_DQN.csv')):
             print(Font.yellow + '–' * 100 + Font.end)
             print('delete old training log')
             print(Font.yellow + '–' * 100 + Font.end)
             os.remove(os.path.join(
-                '/home/mae-ma/git/safety', 'training_log_DQN.csv'))
+                safety_path, 'training_log_DQN.csv'))
 
         self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv', append=True)
         # max number of epochs
@@ -124,16 +125,20 @@ class DeepQNetwork:
         self.eval_steps = []
         self.eval_scores = []
         self.env = env
-
         self.name = name
         self.model_yaml = None
+        # build neural nets
         self.model = self._build_network()
         self.target_model = self._build_network()
+
+        self.loss = [0.0 for _ in self.model.metrics_names]
+
         print(Font.yellow + '–' * 100 + Font.end)
         print('Save model as "model.yml"')
         with open('model.yml', 'w') as file:
             file.write(self.model_yaml)
         print(Font.yellow + '–' * 100 + Font.end)
+        # do warmstart
         self.warmstart_flag = warmstart
         if self.warmstart_flag:
             self.warmstart(warmstart_path)
@@ -148,21 +153,12 @@ class DeepQNetwork:
         model = keras.Sequential()
         
         if self.simple_dqn:
-            # if len(self.input_dim) == 3:
-            #     input_dim = tuple([1] + list(self.input_dim))
-            # inputs = keras.Input(input_dim, dtype='float32', name='inputs')
-            # flatten = keras.layers.Flatten()(inputs)
-            # hid = keras.layers.Dense(250, activation='relu', name='hidden')(flatten)
-            # outputs = keras.layers.Dense(self.output_dim, activation='linear', name='outputs')(hid)
-            # model = keras.Model(inputs=inputs, outputs=outputs)
-            
-            # use input_dim NOT input_shape
-            model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            # use input_dim instead of input_shape | dim=100 => shape=(100,) are equal
+            # model.add(keras.layers.Dense(250, input_dim=self.input_dim,
+            model.add(keras.layers.Dense(250, input_shape=(100,),
                                             activation='relu', kernel_initializer='he_uniform'))
-            # model.add(keras.layers.Dense(500, activation='relu', kernel_initializer='he_uniform'))
-            # model.add(keras.layers.Flatten())
             # hidden layer
-            # model.add(keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform'))
+            # model.add(keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim,
                                             activation='linear', kernel_initializer='he_uniform'))
@@ -173,7 +169,6 @@ class DeepQNetwork:
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
                                                                 momentum=self.params['gradient_momentum']),
-                            # loss='categorical_crossentropy',
                             loss='mean_squared_error',
                             metrics=['accuracy'])
             if self.debug:
@@ -197,13 +192,13 @@ class DeepQNetwork:
             model.add(keras.layers.Dense(512, activation='relu'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            model.summary()
             self.model_yaml = model.to_yaml()
             # compile model
             model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
                                                                 decay=0.9,
-                                                                momentum=self.params['gradient_momentum'],
-                                                                epsilon=self.params['epsilon']),
-                            loss='categorical_crossentropy',
+                                                                momentum=self.params['gradient_momentum']),
+                            loss='mean_squared_error',
                             metrics=['accuracy'])
 
         # target_model = keras.models.clone_model(model)
@@ -230,19 +225,15 @@ class DeepQNetwork:
         Input:
             is_testing (bool): evaluation of the network
         """
-        num_episodes = self.num_episodes
-        # pbar = tqdm.tqdm(total=num_episodes, unit='Episodes', ncols=100)
         while self.episode_num < 1:
             # print(Font.yellow + Font.bold + 'Training ... ' + str(self.episode_num) + '/' + str(total_eps) + Font.end,
             #    end='\n')
             if not is_testing:
-                # pbar.update(1)
                 self._replay(batch_size=self.minibatch_size)
                 self.episode_num += 1
 
             if is_testing:
-                pass
-        # pbar.close()
+                break
         self.episode_num = 0
 
     def update_target_model(self, soft=False, beta:float=0.8) -> None:
@@ -258,17 +249,18 @@ class DeepQNetwork:
         else:
             self.target_model.set_weights(self.model.get_weights())
 
-    def act(self, state) -> int:
+    def act(self, state) -> (int, float):
         """
         return action from neural net
         Input:
             state (np.array): the current state as shape (img_height, img_width, 1)
         Output:
             action (int): action number
+            q_val (float): expected q_value
         """
         # state = state[np.newaxis, ...]
         if self.simple_dqn:
-            s = state
+            s = state.reshape((1,100))
             if self.debug:
                 print(Font.yellow + '–' * 100 + Font.end)
                 print(Font.yellow + 'DQN "act" fct here:' + Font.end)
@@ -284,7 +276,7 @@ class DeepQNetwork:
             print(Font.yellow + '–' * 100 + Font.end)
         action = misc.eps_greedy(q_vals=q_vals[0], eps=self.epsilon, rng=self.rng)
         # return action
-        return action
+        return action, np.amax(q_vals[0])
 
     def calc_eps_decay(self, step_counter: int) -> None:
         """
@@ -321,12 +313,6 @@ class DeepQNetwork:
         """
         self.replay_buffer.add(obs_t=state, act=action, rew=reward, obs_tp1=next_state, done=done)
 
-    def plot_model(self, model) -> None:
-        """
-        plot the model to a file
-        """
-        keras.utils.plot_model(model, to_file='model.png')
-
 
     def save_buffer(self, path: str) -> None:
         """
@@ -351,15 +337,15 @@ class DeepQNetwork:
         minibatch = self.replay_buffer.sample(batch_size=batch_size)
         # all of type np.array -> suffix "_a"
         state_a, action_a, reward_a, next_state_a, done_a = minibatch
-        ACTION, REWARD, DONE = 0, 1, 2
-
 
         if self.simple_dqn:
             state_input = np.zeros((batch_size, 100))
             next_state_input = np.zeros((batch_size, 100))
             action, reward, done = [], [], []
-            state_input = state_a[:, 0, :]
-            next_state_input = next_state_a[:, 0, :]
+            # state_input = state_a[:, 0, :]
+            # next_state_input = next_state_a[:, 0, :]
+            state_input = state_a
+            next_state_input = next_state_a
         else:
             dim = (batch_size, ) + self.input_dim
             state_input = np.zeros(dim)
@@ -374,7 +360,7 @@ class DeepQNetwork:
             print(Font.yellow + '–' * 100 + Font.end)
             print('input dim: ', self.input_dim)
             print('state_a shape: ', state_a.shape)
-            print('update input shape: ', state_input.shape)
+            print('input state shape: ', state_input.shape)
             print(Font.yellow + '–' * 100 + Font.end)
 
         for i in range(batch_size):
@@ -382,13 +368,19 @@ class DeepQNetwork:
             reward.append(reward_a[i])
             done.append(done_a[i])
 
-        y = self.model.predict(state_input)
-        y_target = self.target_model.predict(next_state_input)
+        # y = self.model.predict(state_input)
+        # y_target = self.target_model.predict(next_state_input)
+        y = self.model.predict_on_batch(state_input)
+        y_target = self.target_model.predict_on_batch(next_state_input)
 
-
+        # "fit"-method feeds input and output pairs to the model
+        # then the model will train on those data to approximate the output
+        # based on the input
+        # [src](https://keon.io/deep-q-learning/)
         for i in range(batch_size):
             if self.debug:
                 print('y[i][action[i]]:', y[i][action[i]])
+                print('action[i]:', action[i])
                 print('reward[i]:', reward[i])
                 print('y_target[i]:', y_target[i])
             if done[i]:
@@ -396,50 +388,10 @@ class DeepQNetwork:
             else:
                 y[i][action[i]] = reward[i] + self.gamma * np.amax(y_target[i])
 
+        # self.loss = self.model.train_on_batch(state_input, y)
         self.model.fit(state_input, y, batch_size=batch_size,
                        epochs=1, verbose=0, callbacks=[self.csv_logger])
 
-        # # make one array of size (5, batch_size)
-        # batch = np.concatenate((action_a, reward_a, done_a), axis=0).reshape(len(minibatch) - 2, -1)
-        # # transpose to array of size (batch_size, 5)
-        # batch = batch.transpose()
-        # # for state, action, reward, next_state, done in minibatch:
-        # i = 0
-        # for sample in batch:
-        #    if self.simple_dqn:
-        #        state = state_a[i, ...]  # x[:,np.newaxis]
-        #        next_state = next_state_a[i, ...]
-        #    else:
-        #        state = state_a[i, ...]  # x[:,np.newaxis]
-        #        # add new axis to increase the fit the expeted size for the model
-        #        state = state[np.newaxis, ..., np.newaxis]
-        #        next_state = next_state_a[i, ...]
-        #        # add new axis to increase the fit the expeted size for the model
-        #        next_state = next_state[np.newaxis, ..., np.newaxis]
-        #    
-        #    action = sample[ACTION]
-        #    reward = sample[REWARD]
-        #    done = sample[DONE]
-        #    # set the target for DQN
-        #    y_target = reward
-        #    if not done:
-        #        # self.model.predict(s') -> Q(s',a')
-        #        y_target = reward + self.gamma * np.amax(self.target_model.predict(next_state)[0])
-        #    # create predictet target function
-        #    y = self.model.predict(state)
-        #    # self.model.predict(s) -> Q(s,a)
-        #    # y.shape -> (1, 4)
-        #    y[0][int(action)] = y_target
-        #    # fit method feeds input and output pairs to the model
-        #    # then the model will train on those data to approximate the output
-        #    # based on the input
-        #    # [src](https://keon.io/deep-q-learning/)
-        #    input = state
-        #    output = y
-        #    self.model.fit(input, output, epochs=1, verbose=0, callbacks=[self.csv_logger])
-        #    # self.model.fit(state, target_f, epochs=1, verbose=0)
-        #    # TODO: return mean score and mean steps
-        #    i += 1
 
     def main(self):
         print('DQN here')

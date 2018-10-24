@@ -16,6 +16,8 @@
 ### DQN
 [Deep Q-Networks](https://www.nature.com/articles/nature14236.pdf)
 
+![DQN](badges/DQN_game.gif)
+
 ## Fruit Game
 [Fruit game](https://github.com/Maluuba/hra) from Maluuba will be used to benchmark the different architectures.
 
