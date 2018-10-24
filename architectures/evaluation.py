@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.0
+@version: 1.3.1
 
 #############################################################################################
 
 History:
+- v1.3.1: cleanup
 - v1.3.0: plot for q-vals
 - v1.2.1: change filenames
 - v1.2.0: use smoothed score output for better visualization
@@ -112,12 +113,10 @@ class Evaluation:
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='loss')
         ax1.set_ylabel('Loss')
-        # ax1.set_xlabel('Replays')
 
         score_value = [x[0] for x in self.reward]
         score_time = [x[1] for x in self.reward]
         ax2.plot(score_time, smooth(np.array(score_value), 11)[:-10], 'r', label='scores')
-        # ax2.plot(score_time, score_value, 'g', label='scores')
         ax2.set_xlabel('Steps')
         ax2.set_ylabel('Scores')
         ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
@@ -137,7 +136,7 @@ class Evaluation:
             model + '.pdf'
         self.plot_filename = filename
         plt.savefig(filename)
-        # plt.show()
+        plt.show()
         print('–'*50)
 
     def plot_q_vals(self):
@@ -151,7 +150,7 @@ class Evaluation:
         ax1.set_xlabel('Steps')
         plt.legend()
         plt.grid()
-        plt.show()
+        # plt.show()
 
     def save_all(self):
         print('–'*50)
@@ -176,7 +175,7 @@ def main(plot, save):
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot()
-        ev.plot_q_vals()
+        # ev.plot_q_vals()
     if save:
         ev.save_all()
 

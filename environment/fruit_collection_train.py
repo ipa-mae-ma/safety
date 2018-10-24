@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.1.0
+@version: 2.2.0
 
 #############################################################################################
 
 History:
+- v2.2.0: change reward
 - v2.1.0: rename of variables / use of different flags
 - v2.0.3: add more terminal flags
 - v2.0.2: add bool for rendering
@@ -72,13 +73,16 @@ class FruitCollectionTrain(FruitCollection):
         self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
         self.env.render()
 
+        self.env.reward_scheme = {'ghost': -10.0, 'fruit': +100.0, 'step': 0.0, 'wall': 0.0}
+
         self.testing = testing
         self.simple = simple
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (10, 10)  # (img_height, img_width)
+        self.input_dim = (self.env.scr_h, self.env.scr_w)  # (img_height, img_width)
+        # self.input_dim = (10, 10)  # (img_height, img_width)
         if self.simple:
-            self.input_dim = (10, 10)  # (img_height, img_width)
+            pass  # input dim = (img_height, img_width)
         else:
             self.input_dim = (self.input_dim[0] * self.overblow_factor,
                             self.input_dim[1] * self.overblow_factor)  # (img_height, img_width)
@@ -180,7 +184,6 @@ class FruitCollectionTrain(FruitCollection):
                         rew += r
                     if terminated is True:
                         rew += r
-                        # self.dqn.do_training(is_testing=self.testing)
                         self.dqn.save_buffer(path='replay_buffer.pkl')
                         self.dqn.save_weights(path='weights.h5')
                         print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.

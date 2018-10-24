@@ -14,8 +14,8 @@ gamma: 0.85
 ################################
 # RMSprop
 ################################
-# learning_rate: 0.00025
 learning_rate: 0.000025
+# learning_rate: 0.00025
 # learning_rate: 2.5e-7
 # lr from HRA
 # learning_rate: 0.0005
@@ -39,9 +39,25 @@ eps_max_frame: 100000
 num_epochs: 50
 num_episodes: 100
 num_steps: 300
-# target_network_update_frequency: 10000
 target_network_update_frequency: 500
 
 random_seed: 1234
 action_dim: 4
 num_units: 250
+
+dqn:
+  gamma: 0.85
+  learning_rate: 0.0005
+  use_hra: False
+dqn_1:
+  gamma: 0.85
+  learning_rate: 0.0005
+  use_hra: False
+hra: 
+  gamma: 0.99
+  learning_rate: 0.001
+  use_hra: True
+hra_1:
+  gamma: 0.99
+  learning_rate: 0.001
+  use_hra: True
