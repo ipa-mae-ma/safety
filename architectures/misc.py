@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.1.1
 
 #############################################################################################
 
 History:
+- v1.1.1: print yellow text function
 - v1.1.0: update:
         - 'eps_greedy' function for output of neural net
         - add new funtions:
@@ -38,6 +39,13 @@ class Font:
     bold = '\033[1m'
     underline = '\033[4m'
     end = '\033[0m'
+
+
+def printy(text: str) -> None:
+    """
+    print text in yellow terminal color
+    """
+    print(Font.yellow + text + Font.end)
 
 def plot_map(Vs_VI, pis_VI, env, pdf_name):
     """
