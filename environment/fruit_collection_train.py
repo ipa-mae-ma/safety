@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.2.0
+@version: 2.2.2
 
 #############################################################################################
 
 History:
+- v2.2.2: use shape instead of dim
+- v2.2.1: load game length from config file
 - v2.2.0: change reward
 - v2.1.0: rename of variables / use of different flags
 - v2.0.3: add more terminal flags
@@ -70,28 +72,44 @@ class FruitCollectionTrain(FruitCollection):
         print('–'*100)
         print('–'*100)
 
-        self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False)
+        self.params = self.load_params()
+        game_length = self.params['num_steps']
+        self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
+        # self.env = FruitCollectionSmall(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
         self.env.render()
 
-        self.env.reward_scheme = {'ghost': -10.0, 'fruit': +100.0, 'step': 0.0, 'wall': 0.0}
+        # self.env.reward_scheme = {'ghost': -10.0, 'fruit': +100.0, 'step': 0.0, 'wall': 0.0}
 
         self.testing = testing
         self.simple = simple
         # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
-        self.input_dim = (self.env.scr_h, self.env.scr_w)  # (img_height, img_width)
-        # self.input_dim = (10, 10)  # (img_height, img_width)
+        self.input_shape = (self.env.scr_h, self.env.scr_w)  # (img_height, img_width)
+        # self.input_shape = (10, 10)  # (img_height, img_width)
         if self.simple:
-            pass  # input dim = (img_height, img_width)
+            # input shape = (img_height * img_width, )
+            self.input_shape = (self.input_shape[0] * self.input_shape[1], )
+            self.input_dim = self.input_shape[0]
         else:
-            self.input_dim = (self.input_dim[0] * self.overblow_factor,
-                            self.input_dim[1] * self.overblow_factor)  # (img_height, img_width)
+            self.input_shape = (self.input_shape[0] * self.overblow_factor,
+                            self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
-        self.dqn = DeepQNetwork(env=self.env, input_dim=self.input_dim, output_dim=self.env.nb_actions,
+        self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=self.simple, name='DQN')
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
+
+    def load_params(self):
+        """
+        load parameters from the config file
+        """
+        environment_path = os.path.dirname(os.path.realpath(__file__))
+        safety_path = os.path.dirname(environment_path)
+        cfg_file = os.path.join(os.path.join(
+            safety_path, 'architectures'), 'config_dqn.yml')
+        return yaml.safe_load(open(cfg_file, 'r'))
+
 
     def init_with_mode(self):
         self.is_ghost = False
@@ -136,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
 
                     if self.simple:
                         states.append(self.mc.make_frame(obs, do_overblow=False, 
-                                                     overblow_factor=self.overblow_factor).reshape(100,))
+                                                     overblow_factor=self.overblow_factor).reshape(self.input_shape))
                     else:
                         # append grayscale image to state list
                         states.append(self.mc.make_frame(obs, do_overblow=True, 
@@ -189,7 +207,7 @@ class FruitCollectionTrain(FruitCollection):
                         print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
                               format(episode, self.dqn.num_episodes, epoch,
                                      self.dqn.num_epochs, rew, self.dqn.epsilon, step_counter))
-                        reward.append((rew, step_counter))
+                        reward.append((rew, step_counter, step))
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
