@@ -27,6 +27,17 @@ Simplified network architecture:
 ## Fruit Game
 [Fruit game](https://github.com/Maluuba/hra) from Maluuba will be used to benchmark the different architectures.
 
+### Reward
+**Do only change the reward in the `fruit_collection.py` main class from which other packages inherit!**
+Do **not** change the reward in `fruit_collection_train.py`, otherwise the learning will not converge.
+Workings rewards:
+
+| fruit | ghost | step | game mode | addition |
+|:---:|:---:|:---:|:--:|:---:|
+| +1.0  |  -    | 0.0  | mini | use normalization for frame input |
+| +10.0| - | 0.0 | mini | no noramlization for frame input |
+| +100.0| - | 0.0 | mini | no noramlization for frame input |
+
 # TODO list
 
 ## CI
