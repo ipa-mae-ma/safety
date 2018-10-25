@@ -4,11 +4,13 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.1
+@version: 1.4.1
 
 #############################################################################################
 
 History:
+- v1.4.1: plot steps
+- v1.4.0: update file function
 - v1.3.1: cleanup
 - v1.3.0: plot for q-vals
 - v1.2.1: change filenames
@@ -26,6 +28,7 @@ import shutil
 import os
 import click
 import datetime
+
 
 def smooth(x, window_len=11, window='hanning'):
     """smooth the data using a window with requested size.
@@ -89,54 +92,86 @@ class Evaluation:
         # self.src_filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.src_filepath = os.getcwd()
         self.plot_filename = None
-        
-        with open(os.path.join(self.src_filepath, 'reward.yml'), 'r') as file:
-            self.reward = yaml.load(file)
-        with open(os.path.join(os.path.join(self.src_filepath, 'architectures'), 'config_dqn.yml'), 'r') as file:
-            self.dqn_config = yaml.load(file)
-        with open(os.path.join(self.src_filepath, 'model.yml'), 'r') as file:
-            self.model = yaml.load(file)
-
+        self.load_files(filepath=self.src_filepath)
         self.tgt_filepath = os.path.join(os.path.dirname(
             os.path.dirname(__file__)), 'results')
         if not os.path.exists(self.tgt_filepath):
             os.makedirs(self.tgt_filepath)
 
-    def plot(self):
-        print('–'*50)
-        print('Plot "reward.yml"')
-        csv_path = os.path.join(os.getcwd(), 'training_log_DQN.csv')
+    def load_files(self, filepath):
+        with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
+            self.reward = yaml.load(file)
+        with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_dqn.yml'), 'r') as file:
+            self.dqn_config = yaml.load(file)
+        with open(os.path.join(filepath, 'model.yml'), 'r') as file:
+            self.model = yaml.load(file)
+        csv_path = os.path.join(filepath, 'training_log_DQN.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
+
+    def load_files_update(self, filepath):
+        with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
+            self.reward = yaml.load(file)
+        with open(os.path.join(filepath, 'config_dqn.yml'), 'r') as file:
+            self.dqn_config = yaml.load(file)
+        with open(os.path.join(filepath, 'model.yml'), 'r') as file:
+            self.model = yaml.load(file)
+        csv_path = os.path.join(filepath, 'training_log_DQN.csv')
+        self.csv = np.genfromtxt(csv_path, delimiter=',')
+
+    def plot(self, update: bool=False, show: bool=True):
+        print('–'*50)
+        print('>>> Plot')
         smoothed = smooth(self.csv[:, 2], 31)
-        
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='loss')
-        ax1.set_ylabel('Loss')
+        ax1.set_ylabel('Loss', fontsize=35)
 
         score_value = [x[0] for x in self.reward]
         score_time = [x[1] for x in self.reward]
-        ax2.plot(score_time, smooth(np.array(score_value), 11)[:-10], 'r', label='scores')
-        ax2.set_xlabel('Steps')
-        ax2.set_ylabel('Scores')
+        ax2.plot(score_time, smooth(np.array(score_value), 11)
+                 [:-10], 'r', label='scores')
+        ax2.set_xlabel('Steps', fontsize=35)
+        ax2.set_ylabel('Scores', fontsize=35)
+
         ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
-        ax2.legend()
-        ax1.legend()
-        ax2.grid()
+        ax1.legend(fontsize=25)
+        ax2.legend(fontsize=25)
         ax1.grid()
+        ax2.grid()
+        ax1.tick_params(labelsize=15, labelrotation=0)
+        ax2.tick_params(labelsize=15, labelrotation=0)
+        
+        if len(self.reward[0]) > 2:
+            steps_value = [x[2] for x in self.reward]
+            ax2right = ax2.twinx()
+            ax2right.plot(score_time, smooth(np.array(steps_value), 11)
+                     [:-10], 'r', label='step')
+            ax2right.set_ylabel('Steps', fontsize=35)
+            ax2right.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+            ax2right.legend(fontsize=25)
+        
         fig.tight_layout()
         if self.model['config'][0]['class_name'] == 'Conv2D':
-            model = 'Conv2D'
+            model = '-Conv2D'
         else:
             model = '-u' + str(self.model['config'][0]['config']['units'])
-        filename = 'lr' + \
-            str(self.dqn_config['learning_rate']).replace('.', '_') + \
-            '-g' + str(self.dqn_config['gamma']).replace('.', '_') + \
-            model + '.pdf'
+        if not update:
+            filename = 'lr' + \
+                str(self.dqn_config['learning_rate']).replace('.', '_') + \
+                '-g' + str(self.dqn_config['gamma']).replace('.', '_') + \
+                model + '.pdf'
+        else:
+            filename = 'lr' + \
+                str(self.dqn_config['learning_rate']).replace('.', '_') + \
+                '-g' + str(self.dqn_config['gamma']).replace('.', '_') + \
+                model + '_updated.pdf'
         self.plot_filename = filename
-        plt.savefig(filename)
-        plt.show()
+        plt.savefig(os.path.join(self.src_filepath, filename))
+        if show:
+            plt.show()
         print('–'*50)
 
     def plot_q_vals(self):
@@ -152,14 +187,21 @@ class Evaluation:
         plt.grid()
         # plt.show()
 
+    def update_plot(self, filepath: str):
+        self.src_filepath = filepath
+        self.load_files_update(filepath=filepath)
+        self.plot(update=True)
+
     def save_all(self):
+        self.plot(show=False)
         print('–'*50)
         filelist = ['weights.h5', 'target_weights.h5',
                     'reward.yml', 'replay_buffer.pkl', 'training_log_DQN.csv',
                     self.plot_filename, 'architectures/config_dqn.yml', 'model.yml']
-        folder = datetime.datetime.today().strftime('%Y_%m_%d-%H_%M') + '___' + self.plot_filename
+        folder = datetime.datetime.today().strftime(
+            '%Y_%m_%d-%H_%M') + '___' + self.plot_filename
         folderpath = os.path.join(self.tgt_filepath, folder)
-        print('Save all files to: ' + folderpath)
+        print('>>> Save all files to: ' + folderpath)
         if not os.path.exists(folderpath):
             os.makedirs(folderpath)
         for file in filelist:
@@ -174,10 +216,12 @@ def main(plot, save):
     ev = Evaluation()
     print('src: ', ev.src_filepath)
     if plot:
-        ev.plot()
+        ev.plot(show=True)
+        # ev.update_plot('/home/mae-ma/Test/results/2018_10_23-12_03')
         # ev.plot_q_vals()
     if save:
         ev.save_all()
+
 
 if __name__ == '__main__':
     main()
