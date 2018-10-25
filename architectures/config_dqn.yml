@@ -16,7 +16,7 @@ gamma: 0.85
 ################################
 learning_rate: 0.000025
 # learning_rate: 0.00025
-# learning_rate: 2.5e-7
+# learning_rate: 2.5e-6
 # lr from HRA
 # learning_rate: 0.0005
 # learning_rate: 0.001
@@ -36,7 +36,7 @@ eps_max_frame: 100000
 ################################
 # training
 ################################
-num_epochs: 50
+num_epochs: 3
 num_episodes: 100
 num_steps: 300
 target_network_update_frequency: 500
