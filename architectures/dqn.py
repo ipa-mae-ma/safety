@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.0
+@version: 2.0.1
 
 #############################################################################################
 
 History:
+- v2.0.1: use shape instead of dim
 - v2.0.0: working DQN, cleanup
 - v1.5.2: act returns also predicted q_value
 - v1.5.1: use only mean-squared-error as loss
@@ -52,8 +53,7 @@ from architectures.misc import Font
 
 class DeepQNetwork:
     def __init__(self,
-                 env,
-                 input_dim: tuple=(1, 14, 21, 1),
+                 input_shape: tuple=(1, 14, 21, 1),
                  output_dim: int=4,
                  warmstart: bool=False,
                  warmstart_path: str=None,
@@ -66,9 +66,8 @@ class DeepQNetwork:
         3. train parameters
 
         Input:
-            input_size (int): Input dimension of format type (n_img, img_height, img_width, n_channels)
-            env (env): environment class
-            output_size (int): Output dimension
+            input_shape (int): Input shape of format type (n_img, img_height, img_width, n_channels)
+            output_dim (int): Output dimension
             warmstart (bool): load network weights from disk
             warmstart_path (str): path where the weights are stored
             simple (bool): use simplified DQN without conv_layers
@@ -86,11 +85,11 @@ class DeepQNetwork:
         self.simple_dqn = simple_dqn
 
         if self.simple_dqn:
-            # input dim = (img_height, img_width)
-            self.input_dim = input_dim[0] * input_dim[1]
+            # input shape = (img_height * img_width, )
+            self.input_shape = input_shape
         else:
-            # input dim = (img_height, img_width, n_channels)
-            self.input_dim = input_dim + (1,)
+            # input shape = (img_height, img_width)
+            self.input_shape = input_shape + (1,) # (height, width, channels=1)
         self.output_dim = output_dim  # number of actions
         self.l_rate = self.params['learning_rate']
         self.minibatch_size = self.params['minibatch_size']
@@ -124,7 +123,6 @@ class DeepQNetwork:
         self.score_agent = 0
         self.eval_steps = []
         self.eval_scores = []
-        self.env = env
         self.name = name
         self.model_yaml = None
         # build neural nets
@@ -155,7 +153,7 @@ class DeepQNetwork:
         if self.simple_dqn:
             # use input_dim instead of input_shape | dim=100 => shape=(100,) are equal
             # model.add(keras.layers.Dense(250, input_dim=self.input_dim,
-            model.add(keras.layers.Dense(250, input_shape=(100,),
+            model.add(keras.layers.Dense(250, input_shape=self.input_shape,
                                             activation='relu', kernel_initializer='he_uniform'))
             # hidden layer
             # model.add(keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
@@ -180,7 +178,7 @@ class DeepQNetwork:
         else:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
-            model.add(keras.layers.Conv2D(input_shape=self.input_dim, filters=32,
+            model.add(keras.layers.Conv2D(input_shape=self.input_shape, filters=32,
                                             kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
             # second hidden layer
             model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
@@ -260,7 +258,7 @@ class DeepQNetwork:
         """
         # state = state[np.newaxis, ...]
         if self.simple_dqn:
-            s = state.reshape((1,100))
+            s = state.reshape((1, self.input_shape[0]))
             if self.debug:
                 print(Font.yellow + '–' * 100 + Font.end)
                 print(Font.yellow + 'DQN "act" fct here:' + Font.end)
@@ -347,7 +345,7 @@ class DeepQNetwork:
             state_input = state_a
             next_state_input = next_state_a
         else:
-            dim = (batch_size, ) + self.input_dim
+            dim = (batch_size, ) + self.input_shape
             state_input = np.zeros(dim)
             next_state_input = np.zeros(dim)
             # state_a.shape = (batch_size, 1, height, width, n_channels)
@@ -358,7 +356,7 @@ class DeepQNetwork:
 
         if self.debug:
             print(Font.yellow + '–' * 100 + Font.end)
-            print('input dim: ', self.input_dim)
+            print('input dim: ', self.input_shape)
             print('state_a shape: ', state_a.shape)
             print('input state shape: ', state_input.shape)
             print(Font.yellow + '–' * 100 + Font.end)
