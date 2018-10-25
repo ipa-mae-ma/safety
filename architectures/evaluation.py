@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.1
+@version: 1.4.2
 
 #############################################################################################
 
 History:
+- v1.4.2: change labels and display style
 - v1.4.1: plot steps
 - v1.4.0: update file function
 - v1.3.1: cleanup
@@ -118,41 +119,46 @@ class Evaluation:
         csv_path = os.path.join(filepath, 'training_log_DQN.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
 
-    def plot(self, update: bool=False, show: bool=True):
+    def plot(self, update: bool = False, show: bool = True):
         print('–'*50)
         print('>>> Plot')
         smoothed = smooth(self.csv[:, 2], 31)
+        legends = []
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 12))
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='loss')
-        ax1.set_ylabel('Loss', fontsize=35)
+        ax1.set_ylabel('loss', fontsize=35)
 
         score_value = [x[0] for x in self.reward]
         score_time = [x[1] for x in self.reward]
-        ax2.plot(score_time, smooth(np.array(score_value), 11)
-                 [:-10], 'r', label='scores')
-        ax2.set_xlabel('Steps', fontsize=35)
-        ax2.set_ylabel('Scores', fontsize=35)
+        legend, = ax2.plot(score_time, smooth(np.array(score_value), 11)
+                           [:-10], 'r', label='scores')
+        legends.append(legend)
+        ax2.set_xlabel('steps', fontsize=35)
+        ax2.set_ylabel('scores', fontsize=35)
 
         ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax1.legend(fontsize=25)
-        ax2.legend(fontsize=25)
+        # ax2.legend(fontsize=25)
         ax1.grid()
         ax2.grid()
         ax1.tick_params(labelsize=15, labelrotation=0)
         ax2.tick_params(labelsize=15, labelrotation=0)
-        
+
         if len(self.reward[0]) > 2:
             steps_value = [x[2] for x in self.reward]
             ax2right = ax2.twinx()
-            ax2right.plot(score_time, smooth(np.array(steps_value), 11)
-                     [:-10], 'r', label='step')
-            ax2right.set_ylabel('Steps', fontsize=35)
+            legend, = ax2right.plot(score_time, smooth(np.array(steps_value), 11)
+                                    [:-10], 'b--', label='steps/episode')
+            legends.append(legend)
+            ax2right.set_ylabel('steps per episode', fontsize=35)
             ax2right.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
-            ax2right.legend(fontsize=25)
-        
+            # ax2right.legend(fontsize=25)
+        # show both legends for second subplot
+        plt.legend(handles=legends, fontsize=25, loc='center left')
+
         fig.tight_layout()
         if self.model['config'][0]['class_name'] == 'Conv2D':
             model = '-Conv2D'
