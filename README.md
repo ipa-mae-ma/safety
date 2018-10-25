@@ -18,6 +18,12 @@
 
 ![DQN](badges/DQN_game.gif)
 
+Paper DQN network architecture:
+![Conv2D](badges/lr2_5e-05-g0_85Conv2D.jpg)
+
+Simplified network architecture:
+![Simple](badges/lr2_5e-05-g0_85-u250.jpg)
+
 ## Fruit Game
 [Fruit game](https://github.com/Maluuba/hra) from Maluuba will be used to benchmark the different architectures.
 
