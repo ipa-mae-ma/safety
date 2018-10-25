@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.1
+@version: 2.0.2
 
 #############################################################################################
 
 History:
+- v2.0.2: get parameterset as keyword
 - v2.0.1: use shape instead of dim
 - v2.0.0: working DQN, cleanup
 - v1.5.2: act returns also predicted q_value
@@ -58,7 +59,7 @@ class DeepQNetwork:
                  warmstart: bool=False,
                  warmstart_path: str=None,
                  simple_dqn: bool=True,
-                 name: str='DQN') -> None:
+                 params: dict=None) -> None:
         """
         DQN Agent can:
         1. build network
@@ -71,12 +72,14 @@ class DeepQNetwork:
             warmstart (bool): load network weights from disk
             warmstart_path (str): path where the weights are stored
             simple (bool): use simplified DQN without conv_layers
-            name (str, optional): TF Graph will be built under this name
+            params (dict): parameter dictionary with all config values
         """
         architecture_path = os.path.dirname(os.path.realpath(__file__))
         safety_path = os.path.dirname(architecture_path)
-        cfg_file = os.path.join(architecture_path, 'config_dqn.yml')
-        self.params = yaml.safe_load(open(cfg_file, 'r'))
+        # cfg_file = os.path.join(architecture_path, 'config_dqn.yml')
+        # self.params = yaml.safe_load(open(cfg_file, 'r'))
+        self.params = params
+        self.print_params()
 
         nprs = np.random.RandomState
         self.rng = nprs(self.params['random_seed'])
@@ -123,7 +126,6 @@ class DeepQNetwork:
         self.score_agent = 0
         self.eval_steps = []
         self.eval_scores = []
-        self.name = name
         self.model_yaml = None
         # build neural nets
         self.model = self._build_network()
@@ -140,6 +142,15 @@ class DeepQNetwork:
         self.warmstart_flag = warmstart
         if self.warmstart_flag:
             self.warmstart(warmstart_path)
+
+
+    def print_params(self) -> None:
+        print(Font.yellow + '–' * 100 + Font.end)
+        print('DQN parameters:')
+        for param in self.params:
+            print('-', param, ':', self.params[param])
+        print(Font.yellow + '–' * 100 + Font.end)
+
 
     def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
         """
@@ -169,6 +180,7 @@ class DeepQNetwork:
                                                                 momentum=self.params['gradient_momentum']),
                             loss='mean_squared_error',
                             metrics=['accuracy'])
+#                          loss=tf.losses.huber_loss,
             if self.debug:
                 print(Font.yellow + '–' * 100 + Font.end)
                 print(Font.yellow + 'Model: ' + Font.end)

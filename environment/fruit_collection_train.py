@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.2.2
+@version: 2.3.0
 
 #############################################################################################
 
 History:
+- v2.3.0: add modes
 - v2.2.2: use shape instead of dim
 - v2.2.1: load game length from config file
 - v2.2.0: change reward
@@ -64,21 +65,25 @@ np.set_printoptions(threshold=np.nan)
 
 
 class FruitCollectionTrain(FruitCollection):
-    def __init__(self, warmstart=False, simple=True, render=False, testing=False):
-        print('–'*100)
+    def __init__(self, warmstart=False, simple=True, render=False, testing=False, mode='mini'):
         print('–'*100)
         print('Warmstart:\t', warmstart)
         print('Simple:\t\t', simple)
-        print('–'*100)
-        print('–'*100)
+        print('Mode:\t\t', mode)
 
         self.params = self.load_params()
-        game_length = self.params['num_steps']
-        self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
-        # self.env = FruitCollectionSmall(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
-        self.env.render()
+        if mode == 'mini':
+            params = self.params[mode]
+            game_length = params['num_steps']
+            self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
+        elif mode == 'small':
+            params = self.params[mode]
+            game_length = params['num_steps']
+            self.env = FruitCollectionSmall(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
+        else:
+            raise ValueError('Incorrect mode.')
 
-        # self.env.reward_scheme = {'ghost': -10.0, 'fruit': +100.0, 'step': 0.0, 'wall': 0.0}
+        self.env.render()
 
         self.testing = testing
         self.simple = simple
@@ -96,7 +101,7 @@ class FruitCollectionTrain(FruitCollection):
         self.mc = misc
         self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
-                                simple_dqn=self.simple, name='DQN')
+                                simple_dqn=self.simple, params=params)
         self.a3c = AsynchronousAdvantageActorCritic()
         self.hra = HybridRewardArchitecture()
 
@@ -141,7 +146,8 @@ class FruitCollectionTrain(FruitCollection):
                 framerate = 100
                 sleep_sec = 1 / framerate
 
-                for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes'):
+                # for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes'):
+                for step in tqdm.trange(self.dqn.num_steps, unit='Episodes'):
                     # fix framerate
                     time.sleep(sleep_sec)
                     if step == 0:
@@ -211,14 +217,17 @@ class FruitCollectionTrain(FruitCollection):
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
+                    if step_counter >= 80000:
+                        sys.exit(0)
 
 @click.command()
 @click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
 @click.option('--simple/--no-simple', '-s/-ns', default=True, help='uses simple DQN network')
 @click.option('--render/--no-render', '-r/-nr', default=False, help='render the pygame')
 @click.option('--testing/--no-testing', '-t/-nt', default=False, help='test the network')
-def run(warmstart, simple, render, testing):
-    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing)
+@click.option('--mode', '-m', help='environment, possibilities: "mini", "small"')
+def run(warmstart, simple, render, testing, mode):
+    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing, mode=mode)
     fct.main(verbose=False)
 
 if __name__ == '__main__':
