@@ -1,14 +1,24 @@
 ################################
-# DQN from 'Human-level control through deep reinforcement learning' by Mnih et al. 2015
+# A3C from 'Asynchronous Methods for Deep Reinforcement Learning' by Mnih et al. 2016
 ################################
 minibatch_size: 32
 replay_memory_size: 10000
 gamma: 0.99
 
 ################################
+# Asynchronous
+################################
+threads: 8
+optimizers: 2
+thread_delay: 0.001
+n_step_return: 8
+loss_value_coefficient: .5			# v loss coefficient
+loss_entropy_coefficient: .01 	# entropy coefficient
+
+################################
 # RMSprop
 ################################
-learning_rate: 0.0005
+learning_rate: 0.005
 gradient_momentum: 0.95
 squared_gradient_momentum: 0.95
 min_squared_gradient: 0.01
@@ -16,11 +26,9 @@ min_squared_gradient: 0.01
 ################################
 # epsilon greedy
 ################################
-annealing: True
 epsilon: 1.0
 epsilon_min: 0.1
 eps_max_frame: 100000
-
 
 ################################
 # training
@@ -38,15 +46,17 @@ num_units: 250
 mini:
   ################################
   minibatch_size: 32
-  # replay buffer size
-  # DQN size 1.0e6
-  # HRA size: 10000
   replay_memory_size: 10000
-  # gamma from HRA: 0.85
   gamma: 0.85
   ################################
-  learning_rate: 0.000025
-  # lr from HRA: 0.0005
+  threads: 8
+  optimizers: 2
+  thread_delay: 0.001
+  n_step_return: 8
+  loss_value_coefficient: .5			# v loss coefficient
+  loss_entropy_coefficient: .01 	# entropy coefficient
+  ################################
+  learning_rate: 0.005
   gradient_momentum: 0.95
   squared_gradient_momentum: 0.95
   min_squared_gradient: 0.01
@@ -65,15 +75,17 @@ mini:
 small:
   ################################
   minibatch_size: 32
-  # replay buffer size
-  # DQN size 1.0e6
-  # HRA size: 10000
-  replay_memory_size: 20000
-  # gamma from HRA: 0.85
+  replay_memory_size: 10000
   gamma: 0.85
   ################################
-  learning_rate: 0.0005
-  # lr from HRA: 0.0005
+  threads: 8
+  optimizers: 2
+  thread_delay: 0.001
+  n_step_return: 8
+  loss_value_coefficient: .5			# v loss coefficient
+  loss_entropy_coefficient: .01 	# entropy coefficient
+  ################################
+  learning_rate: 0.005
   gradient_momentum: 0.95
   squared_gradient_momentum: 0.95
   min_squared_gradient: 0.01
@@ -81,24 +93,10 @@ small:
   annealing: True
   epsilon: 1.0
   epsilon_min: 0.1
-  eps_max_frame: 150000
+  eps_max_frame: 100000
   ################################
   num_epochs: 5
   num_episodes: 100
-  num_steps: 500
-  target_network_update_frequency: 1000
+  num_steps: 300
+  target_network_update_frequency: 500
   random_seed: 1234
-
-
-dqn_1:
-  gamma: 0.85
-  learning_rate: 0.0005
-  use_hra: False
-hra: 
-  gamma: 0.99
-  learning_rate: 0.001
-  use_hra: True
-hra_1:
-  gamma: 0.99
-  learning_rate: 0.001
-  use_hra: True

@@ -125,11 +125,13 @@ class Evaluation:
         smoothed = smooth(self.csv[:, 2], 31)
         legends = []
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='loss')
         ax1.set_ylabel('loss', fontsize=35)
 
+        if len(self.reward) <= 11:
+            raise ValueError('Too few episodes played...')
         score_value = [x[0] for x in self.reward]
         score_time = [x[1] for x in self.reward]
         legend, = ax2.plot(score_time, smooth(np.array(score_value), 11)
@@ -157,7 +159,7 @@ class Evaluation:
             ax2right.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
             # ax2right.legend(fontsize=25)
         # show both legends for second subplot
-        plt.legend(handles=legends, fontsize=25, loc='center left')
+        plt.legend(handles=legends, fontsize=25, loc='center right')
 
         fig.tight_layout()
         if self.model['config'][0]['class_name'] == 'Conv2D':
@@ -205,7 +207,7 @@ class Evaluation:
                     'reward.yml', 'replay_buffer.pkl', 'training_log_DQN.csv',
                     self.plot_filename, 'architectures/config_dqn.yml', 'model.yml']
         folder = datetime.datetime.today().strftime(
-            '%Y_%m_%d-%H_%M') + '___' + self.plot_filename
+            '%Y_%m_%d-%H_%M') + '___' + self.plot_filename.replace('.pdf', '')
         folderpath = os.path.join(self.tgt_filepath, folder)
         print('>>> Save all files to: ' + folderpath)
         if not os.path.exists(folderpath):
@@ -223,7 +225,8 @@ def main(plot, save):
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot(show=True)
-        # ev.update_plot('/home/mae-ma/Test/results/2018_10_23-12_03')
+        # ev.update_plot(
+        #    '/home/mae-ma/git/safety/results/2018_10_24-11_54___lr2_5e-05-g0_85-u250.pdf')
         # ev.plot_q_vals()
     if save:
         ev.save_all()

@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.3.0
+@version: 2.3.1
 
 #############################################################################################
 
 History:
+- v2.3.1: terminal output for training update
 - v2.3.0: add modes
 - v2.2.2: use shape instead of dim
 - v2.2.1: load game length from config file
@@ -36,7 +37,6 @@ import click
 import tqdm
 # or FruitCollectionLarge or FruitCollectionMini
 from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
-
 ###############################
 # Necessary to import packages from different folders
 ###############################
@@ -102,8 +102,7 @@ class FruitCollectionTrain(FruitCollection):
         self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=self.simple, params=params)
-        self.a3c = AsynchronousAdvantageActorCritic()
-        self.hra = HybridRewardArchitecture()
+        # self.a3c = AsynchronousAdvantageActorCritic()
 
     def load_params(self):
         """
@@ -132,6 +131,19 @@ class FruitCollectionTrain(FruitCollection):
         else:
             self.ghosts = []
 
+
+    def training_print(self, step_counter: int, timing_list: list) -> None:
+        """
+        print terminal output for training
+        """
+        if len(timing_list) > 30:
+            mean_v = np.mean(np.array(timing_list[-30:-1]) - np.array(timing_list[-31:-2]))
+        else:
+            mean_v = np.inf
+        text = '\r' + misc.Font.yellow + \
+            '>>> Training: {}/{} --- {: .1f} steps/second' + misc.Font.end
+        print(text.format(step_counter, self.dqn.num_steps, 1/mean_v), end='', flush=True)
+
     def main(self, verbose=False):
         reward = []
         step_counter = 0
@@ -145,9 +157,12 @@ class FruitCollectionTrain(FruitCollection):
                 rew = 0
                 framerate = 100
                 sleep_sec = 1 / framerate
-
-                # for step in tqdm.tqdm(range(self.dqn.num_steps), unit='Episodes'):
-                for step in tqdm.trange(self.dqn.num_steps, unit='Episodes'):
+                
+                timing = [0.0]
+                # for step in tqdm.trange(self.dqn.num_steps, unit='Steps', ascii=True):
+                for step in range(self.dqn.num_steps):
+                    timing.append(time.time())
+                    self.training_print(step_counter=step+1, timing_list=timing)
                     # fix framerate
                     time.sleep(sleep_sec)
                     if step == 0:
@@ -217,8 +232,8 @@ class FruitCollectionTrain(FruitCollection):
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
-                    if step_counter >= 80000:
-                        sys.exit(0)
+                    # if step_counter >= 80000:
+                    #     sys.exit(0)
 
 @click.command()
 @click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')

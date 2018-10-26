@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.2
+@version: 2.0.3
 
 #############################################################################################
 
 History:
+- v2.0.3: delete unused variables
 - v2.0.2: get parameterset as keyword
 - v2.0.1: use shape instead of dim
 - v2.0.0: working DQN, cleanup
@@ -42,11 +43,9 @@ import os
 import yaml
 import tensorflow as tf
 from tensorflow import keras
-import tqdm
 
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
-from architectures.misc import printy
 from architectures.misc import Font
 
 # tf.enable_eager_execution()
@@ -121,11 +120,6 @@ class DeepQNetwork:
 
         # self.fps = 0
         self.episode_num = 0
-        self.last_episode_steps = 0
-        self.total_training_steps = 0
-        self.score_agent = 0
-        self.eval_steps = []
-        self.eval_scores = []
         self.model_yaml = None
         # build neural nets
         self.model = self._build_network()
@@ -152,12 +146,11 @@ class DeepQNetwork:
         print(Font.yellow + '–' * 100 + Font.end)
 
 
-    def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
+    def _build_network(self) -> keras.models.Sequential:
         """
         build network with DQN parameters
         Output:
-            target_network (keras.model): neural nets for DQN
-            evaluation_network (keras.model): neural nets for DQN
+            network (keras.model): neural net for architecture
         """
         model = keras.Sequential()
         
@@ -201,7 +194,8 @@ class DeepQNetwork:
             # fourth hidden layer
             model.add(keras.layers.Dense(512, activation='relu'))
             # output layer
-            model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            # model.add(keras.layers.Dense(self.output_dim, activation='relu'))
+            model.add(keras.layers.Dense(self.output_dim, activation='linear'))
             model.summary()
             self.model_yaml = model.to_yaml()
             # compile model
@@ -210,7 +204,6 @@ class DeepQNetwork:
                                                                 momentum=self.params['gradient_momentum']),
                             loss='mean_squared_error',
                             metrics=['accuracy'])
-
         # target_model = keras.models.clone_model(model)
         return model
 
