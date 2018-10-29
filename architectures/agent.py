@@ -89,9 +89,11 @@ class Agent:
         """
         self.replay_buffer.dump(file_path=path)
 
-    def save_weights(self, path: str) -> None:
+    def save_weights(self, model, path: str) -> None:
         """
         save model weights
+        Input:
+            model (keras.Sequential): keras model
+            path (str): save path
         """
-        self.model.save_weights(filepath=path)
-        self.target_model.save_weights(filepath='target_' + path)
+        model.save_weights(filepath=path)
