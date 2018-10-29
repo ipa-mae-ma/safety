@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.1
+@version: 1.1.2
 
 #############################################################################################
 
 History:
+- v1.1.2: use normalization flag
 - v1.1.1: print yellow text function
 - v1.1.0: update:
         - 'eps_greedy' function for output of neural net
@@ -296,7 +297,7 @@ def overblow(input_array, factor: int) -> np.array:
     return out
 
 
-def rgb2grayscale(color, normalization=False):
+def rgb2grayscale(color, normalization=False) -> float:
     """
     returns the grayscale value for a RGB color tuple
     using formula Y = 0.2126 * R + 0.7152 * G + 0.0722 * B
@@ -308,13 +309,14 @@ def rgb2grayscale(color, normalization=False):
 
 
 
-def make_frame(observation, do_overblow=True, overblow_factor=8):
+def make_frame(observation, do_overblow=True, overblow_factor=8, normalization: bool=True) -> np.array:
     """
     make grayscale frame out of the observation channels
     Input:
         observation (np.array): observation frame of size (4,...)
         overblow (bool): should the output frame be overblown or not
         overblow_factor (int): factor for change of dimensions
+        normalization (bool): normalize the pixels to [0,1]
     Output:
         frame (np.array): grayscale frame array with dim (observation.shape)
     """
@@ -325,13 +327,13 @@ def make_frame(observation, do_overblow=True, overblow_factor=8):
     WALL = (80, 80, 80)
     frame = np.zeros(shape=observation[0, ...].shape, dtype=np.float32)
     # wall
-    frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=False)
+    frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=normalization)
     # fruit
-    frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=False)
+    frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=normalization)
     # pacman
-    frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=False)
+    frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=normalization)
     # ghosts
-    frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=False)
+    frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=normalization)
     if do_overblow:
         frame = overblow(input_array=frame, factor=overblow_factor)
     # frame dim = (obs.shape)
