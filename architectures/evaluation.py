@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.2
+@version: 1.4.3
 
 #############################################################################################
 
 History:
+- v1.4.3: mode update
 - v1.4.2: change labels and display style
 - v1.4.1: plot steps
 - v1.4.0: update file function
@@ -88,22 +89,25 @@ def smooth(x, window_len=11, window='hanning'):
 
 
 class Evaluation:
-    def __init__(self):
+    def __init__(self, mode: str):
         # src_filepath = home/mae-ma/git/safety
         # self.src_filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if mode is None:
+            raise ValueError('No mode value given!')
         self.src_filepath = os.getcwd()
         self.plot_filename = None
-        self.load_files(filepath=self.src_filepath)
+        self.load_files(filepath=self.src_filepath, mode=mode)
         self.tgt_filepath = os.path.join(os.path.dirname(
             os.path.dirname(__file__)), 'results')
         if not os.path.exists(self.tgt_filepath):
             os.makedirs(self.tgt_filepath)
 
-    def load_files(self, filepath):
+    def load_files(self, filepath, mode):
         with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
         with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_dqn.yml'), 'r') as file:
             self.dqn_config = yaml.load(file)
+        self.dqn_config = self.dqn_config[mode]
         with open(os.path.join(filepath, 'model.yml'), 'r') as file:
             self.model = yaml.load(file)
         csv_path = os.path.join(filepath, 'training_log_DQN.csv')
@@ -220,8 +224,9 @@ class Evaluation:
 @click.command()
 @click.option('--plot/-no-plot', '-p/-np', default=True, help='plot the results from the "results.yaml" file')
 @click.option('--save/--no-save', '-s/-ns', default=False, help='backups the files')
-def main(plot, save):
-    ev = Evaluation()
+@click.option('--mode', '-m', help='mode of fruit game')
+def main(plot, save, mode):
+    ev = Evaluation(mode=mode)
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot(show=True)
