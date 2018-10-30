@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.3
+@version: 1.4.4
 
 #############################################################################################
 
 History:
+- v1.4.4: update Qvalue plot
 - v1.4.3: mode update
 - v1.4.2: change labels and display style
 - v1.4.1: plot steps
@@ -189,15 +190,17 @@ class Evaluation:
     def plot_q_vals(self):
         csv_path = os.path.join(os.getcwd(), 'q_val_DQN.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
-        smoothed = smooth(self.csv[:], 51)
+        smoothed = smooth(self.csv[:], 1051)
         fig, ax1 = plt.subplots(1, 1, figsize=(12, 12))
         ax1.plot([_ for _ in range(len(smoothed))],
                  smoothed, 'b', label='Q values')
-        ax1.set_ylabel('Q values')
-        ax1.set_xlabel('Steps')
-        plt.legend()
+        ax1.legend(fontsize=25)
+        ax1.set_ylabel('Q values', fontsize=35)
+        ax1.set_xlabel('Steps', fontsize=35)
+        ax1.tick_params(labelsize=15, labelrotation=0)
+        plt.legend(fontsize=25, loc='upper left')
         plt.grid()
-        # plt.show()
+        plt.show()
 
     def update_plot(self, filepath: str):
         self.src_filepath = filepath
@@ -224,15 +227,17 @@ class Evaluation:
 @click.command()
 @click.option('--plot/-no-plot', '-p/-np', default=True, help='plot the results from the "results.yaml" file')
 @click.option('--save/--no-save', '-s/-ns', default=False, help='backups the files')
+@click.option('--qvalue/--no-qvalue', '-q/-nq', default=False, help='show Q-value plot')
 @click.option('--mode', '-m', help='mode of fruit game')
-def main(plot, save, mode):
+def main(plot, save, mode, qvalue):
     ev = Evaluation(mode=mode)
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot(show=True)
         # ev.update_plot(
         #    '/home/mae-ma/git/safety/results/2018_10_24-11_54___lr2_5e-05-g0_85-u250.pdf')
-        # ev.plot_q_vals()
+    if qvalue:
+        ev.plot_q_vals()
     if save:
         ev.save_all()
 
