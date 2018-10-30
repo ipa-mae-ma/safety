@@ -154,16 +154,11 @@ class FruitCollectionTrain(FruitCollection):
                 states = []
                 self.env.reset()
                 rew = 0
-                framerate = 1000
-                sleep_sec = 1 / framerate
-                
                 timing = [0.0]
                 # for step in tqdm.trange(self.dqn.num_steps, unit='Steps', ascii=True):
                 for step in range(self.dqn.num_steps):
                     timing.append(time.time())
                     self.training_print(step_counter=step+1, timing_list=timing)
-                    # fix framerate
-                    # time.sleep(sleep_sec)
                     if step == 0:
                         action = np.random.choice(self.env.legal_actions)
                     else:
@@ -187,7 +182,8 @@ class FruitCollectionTrain(FruitCollection):
                         state_t1 = states[-1]
                         self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
                         self.dqn.do_training(is_testing=self.testing)
-                self.env.render()
+                    
+                    self.env.render()
                     # increase step counter
                     step_counter += 1
                     

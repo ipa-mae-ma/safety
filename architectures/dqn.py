@@ -190,7 +190,7 @@ class DeepQNetwork:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
             kernel_init = keras.initializers.VarianceScaling(
-                scale=10.0, mode='fan_out', distribution='normal', seed=None)
+                scale=1.0, mode='fan_out', distribution='normal', seed=None)
 
             model.add(keras.layers.Conv2D(input_shape=self.input_shape, filters=32,
                                             kernel_size=(8, 8), strides=4, activation='relu',
