@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.3
+@version: 2.1.0
 
 #############################################################################################
 
 History:
+- v2.1.0: update kernel initializer to work with reward <100
 - v2.0.3: delete unused variables
 - v2.0.2: get parameterset as keyword
 - v2.0.1: use shape instead of dim
@@ -53,7 +54,7 @@ from architectures.misc import Font
 
 class DeepQNetwork:
     def __init__(self,
-                 input_shape: tuple=(1, 14, 21, 1),
+                 input_shape: tuple=(10, 10),
                  output_dim: int=4,
                  warmstart: bool=False,
                  warmstart_path: str=None,
@@ -66,7 +67,7 @@ class DeepQNetwork:
         3. train parameters
 
         Input:
-            input_shape (int): Input shape of format type (n_img, img_height, img_width, n_channels)
+            input_shape (int): Input shape of format type (img_height, img_width)
             output_dim (int): Output dimension
             warmstart (bool): load network weights from disk
             warmstart_path (str): path where the weights are stored
@@ -80,8 +81,9 @@ class DeepQNetwork:
         self.params = params
         self.print_params()
 
-        nprs = np.random.RandomState
-        self.rng = nprs(self.params['random_seed'])
+        # nprs = np.random.RandomState
+        # self.rng = nprs(self.params['random_seed'])
+        self.rng = np.random.RandomState(self.params['random_seed'])
 
         # self.mdp = mdp
         self.simple_dqn = simple_dqn
@@ -168,9 +170,13 @@ class DeepQNetwork:
             # for evaluation purpose
             self.model_yaml = model.to_yaml()
             # compile model
-            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                                decay=0.9,
-                                                                momentum=self.params['gradient_momentum']),
+            # model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+            #                                                     decay=0.9,
+            #                                                     momentum=self.params['gradient_momentum']),
+            #                 loss='mean_squared_error',
+            #                 metrics=['accuracy'])
+            model.compile(optimizer=keras.optimizers.RMSprop(lr=self.l_rate,
+                                                            rho=0.9),
                             loss='mean_squared_error',
                             metrics=['accuracy'])
 #                          loss=tf.losses.huber_loss,
@@ -183,19 +189,26 @@ class DeepQNetwork:
         else:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
+            kernel_init = keras.initializers.VarianceScaling(
+                scale=10.0, mode='fan_out', distribution='normal', seed=None)
+
             model.add(keras.layers.Conv2D(input_shape=self.input_shape, filters=32,
-                                            kernel_size=(8, 8), strides=4, activation='relu', data_format="channels_last"))
+                                            kernel_size=(8, 8), strides=4, activation='relu',
+                                          kernel_initializer=kernel_init, data_format='channels_last'))
             # second hidden layer
-            model.add(keras.layers.Conv2D(filters=64, kernel_size=(4, 4), strides=2, activation='relu'))
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(
+                4, 4), strides=2, activation='relu', kernel_initializer=kernel_init))
             # third hidden layer
-            model.add(keras.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=1, activation='relu'))
+            model.add(keras.layers.Conv2D(filters=64, kernel_size=(
+                3, 3), strides=1, activation='relu', kernel_initializer=kernel_init))
             # flatten conv output so last output is of shape (batchsize, output_size)
             model.add(keras.layers.Flatten())
             # fourth hidden layer
-            model.add(keras.layers.Dense(512, activation='relu'))
+            model.add(keras.layers.Dense(512, activation='relu',
+                                         kernel_initializer=kernel_init))
             # output layer
-            # model.add(keras.layers.Dense(self.output_dim, activation='relu'))
-            model.add(keras.layers.Dense(self.output_dim, activation='linear'))
+            model.add(keras.layers.Dense(self.output_dim,
+                                         activation='relu', kernel_initializer='glorot_uniform'))
             model.summary()
             self.model_yaml = model.to_yaml()
             # compile model
@@ -204,7 +217,11 @@ class DeepQNetwork:
                                                                 momentum=self.params['gradient_momentum']),
                             loss='mean_squared_error',
                             metrics=['accuracy'])
-        # target_model = keras.models.clone_model(model)
+            # model.compile(optimizer=keras.optimizers.RMSprop(lr=self.l_rate,
+            #                                                rho=0.9),
+            #                 loss='mean_squared_error',
+            #                 metrics=['accuracy'])
+        
         return model
 
     def warmstart(self, path: str) -> None:

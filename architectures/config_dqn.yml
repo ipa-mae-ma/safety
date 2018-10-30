@@ -45,7 +45,7 @@ mini:
   # gamma from HRA: 0.85
   gamma: 0.85
   ################################
-  learning_rate: 0.000025
+  learning_rate: 0.00025
   # lr from HRA: 0.0005
   gradient_momentum: 0.95
   squared_gradient_momentum: 0.95
@@ -86,7 +86,7 @@ small:
   num_epochs: 5
   num_episodes: 100
   num_steps: 500
-  target_network_update_frequency: 1000
+  target_network_update_frequency: 500
   random_seed: 1234
 
 
