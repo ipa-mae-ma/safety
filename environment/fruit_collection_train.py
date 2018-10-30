@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.3.1
+@version: 2.3.2
 
 #############################################################################################
 
 History:
+- v2.3.2: delete framerate slowdown
 - v2.3.1: terminal output for training update
 - v2.3.0: add modes
 - v2.2.2: use shape instead of dim
@@ -46,8 +47,8 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 # architectures
 ############################
-from architectures.a3c import AsynchronousAdvantageActorCritic
-from architectures.hra import HybridRewardArchitecture
+# from architectures.a3c import AsynchronousAdvantageActorCriticGlobal
+# from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
 ############################
@@ -83,14 +84,13 @@ class FruitCollectionTrain(FruitCollection):
         else:
             raise ValueError('Incorrect mode.')
 
+        self.render = render
         self.env.render()
 
         self.testing = testing
         self.simple = simple
-        # input_dim = (14, 21, 1) # (img_height, img_width, n_channels)
         self.overblow_factor = 8
         self.input_shape = (self.env.scr_h, self.env.scr_w)  # (img_height, img_width)
-        # self.input_shape = (10, 10)  # (img_height, img_width)
         if self.simple:
             # input shape = (img_height * img_width, )
             self.input_shape = (self.input_shape[0] * self.input_shape[1], )
@@ -102,7 +102,6 @@ class FruitCollectionTrain(FruitCollection):
         self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=self.simple, params=params)
-        # self.a3c = AsynchronousAdvantageActorCritic()
 
     def load_params(self):
         """
@@ -155,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
                 states = []
                 self.env.reset()
                 rew = 0
-                framerate = 100
+                framerate = 1000
                 sleep_sec = 1 / framerate
                 
                 timing = [0.0]
@@ -164,7 +163,7 @@ class FruitCollectionTrain(FruitCollection):
                     timing.append(time.time())
                     self.training_print(step_counter=step+1, timing_list=timing)
                     # fix framerate
-                    time.sleep(sleep_sec)
+                    # time.sleep(sleep_sec)
                     if step == 0:
                         action = np.random.choice(self.env.legal_actions)
                     else:
@@ -175,20 +174,20 @@ class FruitCollectionTrain(FruitCollection):
 
                     if self.simple:
                         states.append(self.mc.make_frame(obs, do_overblow=False, 
-                                                     overblow_factor=self.overblow_factor).reshape(self.input_shape))
+                                                     overblow_factor=None,
+                                                     normalization=True).reshape(self.input_shape))
                     else:
                         # append grayscale image to state list
                         states.append(self.mc.make_frame(obs, do_overblow=True, 
-                                                        overblow_factor=self.overblow_factor)[np.newaxis,..., np.newaxis])
-                    
+                                                        overblow_factor=self.overblow_factor,
+                                                        normalization=True)[np.newaxis,..., np.newaxis])
                     # states.append(state)
                     if step >= 1:
                         state_t = states[-2]
                         state_t1 = states[-1]
                         self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
                         self.dqn.do_training(is_testing=self.testing)
-
-                    self.env.render()
+                self.env.render()
                     # increase step counter
                     step_counter += 1
                     
