@@ -13,4 +13,4 @@ __pycache__
 .pytest_cache
 reward.yml
 *results*
-model.yml
+model*.yml
