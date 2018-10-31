@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.3.2
+@version: 2.4.0
 
 #############################################################################################
 
 History:
+- v2.4.0: use new environment step output
 - v2.3.2: delete framerate slowdown
 - v2.3.1: terminal output for training update
 - v2.3.0: add modes
@@ -47,7 +48,7 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 # architectures
 ############################
-# from architectures.a3c import AsynchronousAdvantageActorCriticGlobal
+from architectures.a3c import AsynchronousAdvantageActorCriticGlobal
 # from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
@@ -72,7 +73,7 @@ class FruitCollectionTrain(FruitCollection):
         print('Simple:\t\t', simple)
         print('Mode:\t\t', mode)
 
-        self.params = self.load_params()
+        self.params = self.load_params(filename='config_a3c.yml')
         if mode == 'mini':
             params = self.params[mode]
             game_length = params['num_steps']
@@ -103,14 +104,24 @@ class FruitCollectionTrain(FruitCollection):
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=self.simple, params=params)
 
-    def load_params(self):
+        self.a3c = AsynchronousAdvantageActorCriticGlobal(input_shape=self.input_shape,
+                                                          output_dim=self.env.nb_actions,
+                                                          warmstart=False,
+                                                          warmstart_path=None,
+                                                          simple_a3c=True,
+                                                          params=params,
+                                                          env=self.env)
+
+    def load_params(self, filename: str):
         """
         load parameters from the config file
+        Input:
+            filename (str): file to load
         """
         environment_path = os.path.dirname(os.path.realpath(__file__))
         safety_path = os.path.dirname(environment_path)
         cfg_file = os.path.join(os.path.join(
-            safety_path, 'architectures'), 'config_dqn.yml')
+            safety_path, 'architectures'), filename)
         return yaml.safe_load(open(cfg_file, 'r'))
 
 
@@ -143,7 +154,7 @@ class FruitCollectionTrain(FruitCollection):
             '>>> Training: {}/{} --- {: .1f} steps/second' + misc.Font.end
         print(text.format(step_counter, self.dqn.num_steps, 1/mean_v), end='', flush=True)
 
-    def main(self, verbose=False):
+    def main_dqn(self, verbose=False):
         reward = []
         step_counter = 0
         q_val = 0
@@ -151,38 +162,42 @@ class FruitCollectionTrain(FruitCollection):
         Q_val = np.zeros((0,1))
         for epoch in range(self.dqn.num_epochs):
             for episode in range(self.dqn.num_episodes):
-                states = []
-                self.env.reset()
+                # states = []
+                state, _, _, _ = self.env.reset()
+                if self.simple:
+                    state = self.mc.make_frame(state, do_overblow=False,
+                                           overblow_factor=None,
+                                           normalization=True).reshape(self.input_shape)
+                else:
+                    state = self.mc.make_frame(state, do_overblow=True,
+                                           overblow_factor=self.overblow_factor,
+                                            normalization=True)[np.newaxis, ..., np.newaxis]
                 rew = 0
                 timing = [0.0]
                 # for step in tqdm.trange(self.dqn.num_steps, unit='Steps', ascii=True):
                 for step in range(self.dqn.num_steps):
                     timing.append(time.time())
                     self.training_print(step_counter=step+1, timing_list=timing)
-                    if step == 0:
-                        action = np.random.choice(self.env.legal_actions)
-                    else:
-                        action, q_val = self.dqn.act(states[-1])
-                        self.dqn.calc_eps_decay(step_counter=step_counter)
-                    obs, r, terminated, info = self.env.step(action)
-                    state_low = obs[2, ...]
+
+                    action, q_val = self.dqn.act(state)
+                    self.dqn.calc_eps_decay(step_counter=step_counter)
+                    next_state, r, terminated, info = self.env.step(action)
+                    state_low = next_state[2, ...]
 
                     if self.simple:
-                        states.append(self.mc.make_frame(obs, do_overblow=False, 
+                        next_state = self.mc.make_frame(next_state, do_overblow=False, 
                                                      overblow_factor=None,
-                                                     normalization=True).reshape(self.input_shape))
+                                                     normalization=True).reshape(self.input_shape)
                     else:
                         # append grayscale image to state list
-                        states.append(self.mc.make_frame(obs, do_overblow=True, 
+                        next_state = self.mc.make_frame(next_state, do_overblow=True, 
                                                         overblow_factor=self.overblow_factor,
-                                                        normalization=True)[np.newaxis,..., np.newaxis])
-                    # states.append(state)
-                    if step >= 1:
-                        state_t = states[-2]
-                        state_t1 = states[-1]
-                        self.dqn.remember(state=state_t, action=action, reward=r, next_state=state_t1, done=terminated)
-                        self.dqn.do_training(is_testing=self.testing)
+                                                        normalization=True)[np.newaxis,..., np.newaxis]
+                    self.dqn.remember(state=state, action=action, reward=r, next_state=next_state, done=terminated)
+                    self.dqn.do_training(is_testing=self.testing)
                     
+                    state = next_state
+
                     self.env.render()
                     # increase step counter
                     step_counter += 1
@@ -227,8 +242,10 @@ class FruitCollectionTrain(FruitCollection):
                         with open('reward.yml', 'w') as f:
                             yaml.dump(reward, f)
                         break
-                    # if step_counter >= 80000:
-                    #     sys.exit(0)
+
+    def main_a3c(self):
+        self.a3c.do_training()
+
 
 @click.command()
 @click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
@@ -238,7 +255,8 @@ class FruitCollectionTrain(FruitCollection):
 @click.option('--mode', '-m', help='environment, possibilities: "mini", "small"')
 def run(warmstart, simple, render, testing, mode):
     fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing, mode=mode)
-    fct.main(verbose=False)
+    # fct.main_dqn(verbose=False)
+    fct.main_a3c()
 
 if __name__ == '__main__':
     run()

@@ -20,6 +20,7 @@ import tensorflow as tf
 from tensorflow import keras
 import threading
 import time
+from matplotlib import pyplot as plt
 
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
@@ -29,7 +30,7 @@ from architectures.agent import Agent
 
 ACTOR = 0
 CRITIC = 1
-
+scores = []
 
 class AsynchronousAdvantageActorCriticGlobal(Agent):
     def __init__(self,
@@ -52,6 +53,10 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         """
         super(AsynchronousAdvantageActorCriticGlobal,
               self).__init__(parameters=params)
+        self.session = tf.InteractiveSession()
+        keras.backend.set_session(self.session)
+        self.session.run(tf.global_variables_initializer())
+        
         self.params = params
         self.print_params(architecture_name='A3C')
 
@@ -96,9 +101,6 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         if self.warmstart_flag:
             self.warmstart(warmstart_path)
         
-        self.session = tf.Session()
-        keras.backend.set_session(self.session)
-        self.session.run(tf.global_variables_initializer())
 
     def _build_network(self) -> keras.models.Sequential:
         """
@@ -109,13 +111,15 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         model = keras.Sequential()
 
         if self.simple_a3c:
-            layer_input = keras.Input(batch_shape=(None, self.input_shape))
+            input_shape = (None, ) + self.input_shape
+            # layer_input = keras.Input(batch_shape=(None, self.input_shape))
+            layer_input = keras.Input(batch_shape=(None, 100), name='input')
             l_dense = keras.layers.Dense(
-                250, activation='relu', kernel_initializer='he_uniform')(layer_input)
+                250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
 
-            out_actions = keras.layers.Dense(self.output_dim, activation='softmax')(l_dense)
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', name='out_a')(l_dense)
             out_value = keras.layers.Dense(
-                1, activation='linear', kernel_initializer='he_uniform')(l_dense)
+                1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             actor = keras.Model(inputs=layer_input, outputs=out_actions)
@@ -134,7 +138,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         else:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
-            layer_input = keras.Input(batch_shape=(None, self.input_shape))
+            layer_input = keras.Input(shape=self.input_shape)
             l_hidden1 = keras.layers.Conv2D(filters=16, kernel_size=(8, 8),
                                             strides=4, activation='relu',
                                             kernel_initializer='he_uniform', data_format='channels_last')(layer_input)
@@ -175,7 +179,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         with:
             advantages = discounted_reward - values
         """
-        action = keras.backend.placeholder(shape=(None, self.output_dim))
+        action = keras.backend.placeholder(shape=(self.output_dim,))
         advantages = keras.backend.placeholder(shape=(None, ))
 
         policy = self.actor.output
@@ -190,9 +194,12 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
                                             rho=0.9)
+        # optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate, decay=0.9)
         updates = optimizer.get_updates(loss_actor, self.actor.trainable_weights)
         train = keras.backend.function([self.actor.input, action, advantages], [], updates=updates)
+        # minimize = optimizer.minimize(loss_actor)
         return train
+        # return action, advantages, minimize
     
     def _critic_optimizer(self):
         """
@@ -205,10 +212,13 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
                                              rho=0.9)
-
         updates = optimizer.get_updates(loss_value, self.critic.trainable_weights)
         train = keras.backend.function([self.critic.input, discounted_reward], [], updates=updates)
+
+        # optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate, decay=0.9)
+        # minimize = optimizer.minimize(loss_value)
         return train
+        # return discounted_reward, minimize
 
 
     # def optimize(self):
@@ -263,7 +273,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         self.critic.load_weights(os.path.join(path, 'critic_weights.h5'))
 
 
-    def train(self):
+    def do_training(self):
         agents = [AsynchronousAdvantageActorCriticAgent(index=i, 
                                                         actor=self.actor, 
                                                         critic=self.critic, 
@@ -278,6 +288,19 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
 
         while True:
             time.sleep(10)
+            plot = [np.mean(scores[n:n+500]) for n in range(0, len(scores)-500)]
+            plt.figure(figsize=(16,12))
+            plt.plot(range(len(plot)), plot, 'b')
+            plt.xlabel('Episodes/500')
+            plt.ylabel('Mean scores over last 500 episodes')
+            plt.grid()
+            plt.savefig('./a3c.pdf')
+
+        time.sleep(31)
+        for agent in agents:
+            agent.stop()
+        for agent in agents:
+            agent.join()
 
 
     def reset_gradients(self):
@@ -320,6 +343,9 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
                  action_dim: int,
                  state_shape: tuple,
                  params: dict = None) -> None:
+        
+        super(AsynchronousAdvantageActorCriticAgent, self).__init__()
+        
         self.index = index
         self.actor = actor
         self.critic = critic
@@ -330,8 +356,8 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         self.mc = misc
         self.overblow_factor = 8
 
-        # s, a, r, terminal mask
-        self.train_queue = [[], [], [], []]
+        # s, a, r, s_, terminal mask
+        self.train_queue = [[], [], [], [], []]
 
         self.params = params
         self.gamma = self.params['gamma']
@@ -347,21 +373,27 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
     def run(self):
         episode = 0
         step_counter = 0
+        q_vals = 0
         for epoch in range(self.num_epochs):
             for episode in range(self.num_episodes):
-                state, _, _, _ = self.env.reset()
-                framerate = 100
-                sleep_sec = 1 / framerate
+                obs, _, _, _ = self.env.reset()
+                state = self.mc.make_frame(obs, do_overblow=False,
+                                                overblow_factor=self.overblow_factor,
+                                                normalization=False).reshape(self.state_shape)
+                rew = 0
+                with open('scores.yml', 'w') as f:
+                        yaml.dump(scores, f)
                 for step in range(self.num_steps):
-                    time.sleep(sleep_sec)
-                    action = self.act(state)
+                    time.sleep(0.001)
+                    action, q_vals = self.act(state)
                     obs, r, terminal, info = self.env.step(action)
                     self.calc_eps_decay(step_counter=step_counter)
-                    reward += r
+                    rew += r
+                    self.env.render()
                     next_state = self.mc.make_frame(obs, do_overblow=False,
                                                      overblow_factor=self.overblow_factor,
                                                      normalization=False).reshape(self.state_shape)
-                    self.memory(state, action, r, terminal)
+                    self.memory(state, action, r, next_state, terminal)
                     if step == self.num_steps - 1:
                         terminal = True
                     state = next_state
@@ -369,6 +401,10 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
                     if terminal:
                         episode += 1
                         self.train_episode()
+                        print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
+                              format(episode, self.num_episodes, epoch,
+                                     self.num_epochs, rew, self.epsilon, step_counter))
+                        scores.append(rew)
                         break
 
 
@@ -382,27 +418,18 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         """
         # if self.warmstart_flag:
         #     self.epsilon = self.epsilon_min
-        if self.debug:
-            print(Font.yellow + '–' * 100 + Font.end)
-            print(Font.yellow + 'A3C "calc_eps_decay" fct output:' + Font.end)
-            print('eps:', self.params['epsilon'])
-            print('counter:', step_counter)
-            coord_y = (self.params['epsilon'] - self.epsilon_min)
-            coord_x = self.params['eps_max_frame']
-            print('mx + c:', - coord_y/coord_x *
-                  step_counter + self.params['epsilon'])
-            print(Font.yellow + '–' * 100 + Font.end)
         if self.epsilon > self.epsilon_min:
             self.epsilon = -((self.params['epsilon'] - self.epsilon_min) /
                              self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
-    def memory(self, state: np.array, action: int, reward: float, terminal: float) -> None:
+    def memory(self, state: np.array, action: int, reward: float, next_state: np.array, terminal: float) -> None:
         """
-        save <s, a, r, terminal> every step
+        save <s, a, r, s', terminal> every step
         Input:
             state (np.array): s
             action (int): a
             reward (float): r
+            next_state (np.array): s'
             terminal (float): 1.0 if terminal else 0.0
         """
         self.train_queue[0].append(state)
@@ -410,7 +437,8 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         act[action] = 1
         self.train_queue[1].append(act)
         self.train_queue[2].append(reward)
-        self.train_queue[3].append(1 - terminal)
+        self.train_queue[3].append(next_state)
+        self.train_queue[4].append(1 - terminal)
 
     def discount_rewards(self, rewards):
         """
@@ -426,29 +454,54 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
             discounted_rewards[i] = running_rew
         return discounted_rewards
 
+
     def train_episode(self):
         """
         update the policy and target network every episode
         """
-        s, a, r, s_mask = self.train_queue
+        def get_sample(memory, n):
+            r = 0.
+            for i in range(n):
+                r += memory[2][i] * (self.gamma ** i)
+            s, a, _, _, t = memory[0][0], memory[1][0], None, None, memory[4][0]
+            _, _, _, s_, _ = None, None, None, memory[3][n-1], None
+            return s, a, r, s_
+
+        state, action, reward, next_state = [], [], [], []
+        i = len(self.train_queue[0])
+        while i > 0:
+            n = i
+            s_q, a_q, r_q, ns_q = get_sample(self.train_queue, n)
+            state.append(s_q)
+            action.append(a_q)
+            reward.append(r_q)
+            next_state.append(ns_q)
+            i -= 1
+        # s, a, r, s_, s_mask = self.train_queue
+        s, a, r, s_, s_mask = state, action, reward, next_state, self.train_queue[4]
         s = np.vstack(s)
         a = np.vstack(a)
         r = np.vstack(r)
+        s_ = np.vstack(s_)
         s_mask = np.vstack(s_mask)
-        v = self.critic.predict(s)
-        # r = r + self.gamma ** self.n_step_return * v * s_mask
+        v = self.critic.predict(s_)
+        r = r + self.gamma ** self.n_step_return * v * s_mask
         
         # shape (len(values), )
         v = np.reshape(v, len(v))
         # advantages = r - v
 
-        discounted_rewards = self.discount_rewards(r)
-        discounted_rewards = discounted_rewards + self.gamma ** self.n_step_return * v * s_mask
+
+        discounted_rewards = r
+        # discounted_rewards = self.discount_rewards(r)
+        # discounted_rewards = discounted_rewards + self.gamma ** self.n_step_return * v * s_mask
         advantages = discounted_rewards - v
         # update policy and value network every episode
         self.optimizer[ACTOR]([s, a, advantages])
         self.optimizer[CRITIC]([s, discounted_rewards])
-        self.train_queue = [[], [], [], []]
+        # action, advantages, minimize = self.optimizer[ACTOR]
+        # discounted_reward, minimize = self.optimizer[CRITIC]
+        self.train_queue = [[], [], [], [], []]
 
     def act(self, state) -> (int, float):
         """
@@ -459,7 +512,8 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
             action (int): action number
             policy (float): expected q_value
         """
-        policy = self.actor.predict(state)
+        s = state.reshape((1, self.state_shape[0]))
+        policy = self.actor.predict(s)
         action = misc.eps_greedy(policy[0], self.epsilon, rng=self.rng)
         # return np.random.choice(self.action_dim, size=1, p=policy)
         return action, np.amax(policy[0])
