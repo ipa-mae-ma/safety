@@ -55,7 +55,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         """
         super(AsynchronousAdvantageActorCriticGlobal,
               self).__init__(parameters=params)
-        self.session = tf.InteractiveSession()
+        self.session = tf.Session()
         keras.backend.set_session(self.session)
         keras.backend.manual_variable_initialization(True)
 
@@ -103,7 +103,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         self.lock_queue = threading.Lock()
         # s, a, r, s', s' terminal mask
 
-        self.save_model_yaml(architecture='A3C')
+        # self.save_model_yaml(architecture='A3C')
 
     def _build_network(self) -> keras.models.Sequential:
         """
@@ -114,7 +114,8 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         model = keras.Sequential()
 
         if self.simple_a3c:
-            layer_input = keras.Input(batch_shape=(None, 100), name='input')
+            # layer_input = keras.Input(batch_shape=(None, 100), name='input')
+            layer_input = keras.Input(shape=(100,), name='input')
             l_dense = keras.layers.Dense(
                 250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
 
@@ -139,9 +140,11 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         with:
             advantages = discounted_reward - values
         """
-        s_t = tf.placeholder(tf.float32, shape=(None, 100))
-        a_t = tf.placeholder(tf.float32, shape=(None, self.output_dim))
-        r_t = tf.placeholder(tf.float32, shape=(None, 1))
+        s_t = tf.placeholder(tf.float32, shape=(None, 100), name='s_t')
+        a_t = tf.placeholder(tf.float32, shape=(None, self.output_dim), name='a_t')
+        r_t = tf.placeholder(tf.float32, shape=(None, 1), name='r_t')
+        advantage = tf.placeholder(tf.float32, shape=(None, 1), name='advantage')
+        
 
         p, v = model(s_t)
 
@@ -201,24 +204,27 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
                 return 									# we can't yield inside lock
             
             # print(Font.yellow + 'inside 2' + Font.end)
-            s, a, r, s_, s_mask = self.global_train_queue
+            s1, a1, r1, s_1, s_mask1 = self.global_train_queue
             self.train_queue = [[], [], [], [], []]
 
-        s = np.vstack(s)
-        a = np.vstack(a)
-        r = np.vstack(r)
-        s_ = np.vstack(s_)
-        s_mask = np.vstack(s_mask)
-        p, v = self.model.predict(s_)
-        r = r + self.gamma ** self.n_step_return * v * s_mask
+            s = np.vstack(s1)
+            a = np.vstack(a1)
+            r = np.vstack(r1)
+            # r = np.array(r1).reshape(-1,1)
+            s_ = np.vstack(s_1)
+            s_mask = np.vstack(s_mask1)
+            p, v = self.model.predict(s_)
+            # for i in range(len(r)):
+            #     if np.array_equal(s_[i], np.zeros((100, ))):
+            #         r[i] = r[i] + self.gamma ** self.n_step_return
+            #     else:
+            #         r[i] = r[i] + self.gamma ** self.n_step_return * v[i]
+            r = r + self.gamma ** self.n_step_return * v * s_mask
 
         print(Font.yellow + 'Optimize' + Font.end)
 
         s_t, a_t, r_t, minimize = self.graph
         self.session.run(minimize, feed_dict={s_t: s, a_t: a, r_t: r})
-        # self.loss.append(loss)
-        # with open('loss.yml', 'w') as f:
-        #     yaml.dump(self.loss, f)
 
     def do_training(self):
         agents = [AsynchronousAdvantageActorCriticAgent(index=i,
@@ -230,7 +236,7 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
                                                         state_shape=self.input_shape,
                                                         params=self.params) for i in range(self.threads)]
 
-        opts = [self.Optimizer(optimize=self.optimize) for _ in range(self.threads)]
+        opts = [Optimizer(optimize=self.optimize) for _ in np.round(range(self.threads / 4))]
 
         for opt in opts:
             opt.start()
@@ -256,25 +262,24 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
                 Q_vals.append(q_vals)
             with open('scores.yml', 'w') as f:
                 yaml.dump(scores, f)
-            # plot = [np.mean(scores[n:n+5])
-            #         for n in range(0, len(scores)-5)]
-            # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
-            # ax1.plot(range(len(plot)), plot, 'r', label='Scores')
-            # ax1.set_xlabel('Episodes/5')
-            # ax1.set_ylabel('Mean scores over last 5 episodes')
-            # ax2.plot(range(len(Q_vals)), Q_vals, 'b', label='Q values')
-            # ax1.legend(fontsize=25)
-            # ax2.legend(fontsize=25)
-            # ax1.grid()
-            # ax2.grid()
-            # fig.tight_layout()
-            # plt.savefig('./a3c.pdf')
-
-
-        for agent in agents:
-            agent.stop()
-        for agent in agents:
-            agent.join()
+            plot = [np.mean(scores[n:n+5])
+                    for n in range(0, len(scores)-5)]
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
+            ax1.plot(range(len(plot)), plot, 'r', label='Scores')
+            ax1.set_xlabel('Episodes/5')
+            ax1.set_ylabel('Mean scores over last 5 episodes')
+            ax2.plot(range(len(Q_vals)), Q_vals, 'b', label='Q values')
+            ax1.legend(fontsize=25)
+            ax2.legend(fontsize=25)
+            ax1.grid()
+            ax2.grid()
+            fig.tight_layout()
+            plt.savefig('./a3c.pdf')
+        
+        # for agent in agents:
+        #     agent.stop()
+        # for agent in agents:
+        #     agent.join()
 
     def save_weights(self, path: str) -> None:
         """
@@ -287,19 +292,6 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
     def main(self):
         print('A3C here')
         print('–' * 30)
-
-    class Optimizer(threading.Thread):
-        def __init__(self, optimize):
-            threading.Thread.__init__(self)
-            self.optimize = optimize
-            self.stop_signal = False
-
-        def run(self):
-            while not self.stop_signal:
-                self.optimize()
-
-        def stop(self):
-            self.stop_signal = True
 
 
 class AsynchronousAdvantageActorCriticAgent(threading.Thread):
@@ -337,6 +329,7 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         self.rng = np.random.RandomState(self.params['random_seed'])
         self.debug = False
         self.info = [(0, 0, 0, 0, 0, 0, 0)]
+        self.R = 0.
 
     def run(self):
         episode = 0
@@ -350,7 +343,7 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
                                            normalization=False).reshape(self.state_shape)
                 rew = 0
                 for step in range(self.num_steps):
-                    time.sleep(0.001)
+                    time.sleep(0.0001)
                     action, q_vals = self.act(state)
                     obs, r, terminal, info = self.env.step(action)
                     self.calc_eps_decay(step_counter=step_counter)
@@ -359,16 +352,14 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
                                                     overblow_factor=self.overblow_factor,
                                                     normalization=False).reshape(self.state_shape)
                     
-                    if terminal or step == self.num_steps - 1:
-                        terminal = True
+                    if terminal:
                         next_state = None
                     self.train_episode(state, action, r, next_state, terminal)
                     state = next_state
                     rew += r
                     step_counter += 1
-                    episode += 1
 
-                    if terminal:
+                    if terminal or step == self.num_steps - 1:
                         self.set_info(self.index, episode,
                                       epoch, rew, step_counter, self.epsilon, q_vals)
                         break
@@ -428,26 +419,33 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
             terminal (bool): terminal flag
         """
         def get_sample(memory, n):
-            r = 0.
-            for i in range(n):
-                r += memory[i][2] * (self.gamma ** i)
+            # r = 0.
+            # for i in range(n):
+            #     r += memory[i][2] * (self.gamma ** i)
             s, a, _, _ = memory[0]
             _, _, _, s_ = memory[n-1]
-            return s, a, r, s_
+            # _, _, _, s_ = memory[n-1]
+            # return s, a, r, s_
+            return s, a, self.R, s_
 
         self.memory(s, a, r, s_)
 
+        self.R = (self.R + r * self.gamma ** self.n_step_return) / self.gamma
 
-        if s_ is None:
+        if terminal:
             while len(self.local_train_queue) > 0:
                 n = len(self.local_train_queue)
                 s, a, r, s_ = get_sample(self.local_train_queue, n)
                 self.n_step_queue(s, a, r, s_)
+
+                self.R = (self.R - self.local_train_queue[0][2]) / self.gamma
                 self.local_train_queue.pop(0)
+            self.R = 0.
 
         if len(self.local_train_queue) >= self.n_step_return:
             s, a, r, s_ = get_sample(self.local_train_queue, self.n_step_return)
             self.n_step_queue(s, a, r, s_)
+            self.R = self.R - self.local_train_queue[0][2]
             self.local_train_queue.pop(0)
 
 
@@ -469,6 +467,20 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         # return np.random.choice(self.action_dim, size=1, p=policy)
         return action, value[0][0]
 
+
+class Optimizer(threading.Thread):
+    def __init__(self, optimize):
+        super(Optimizer, self).__init__()
+        self.optimize = optimize
+        self.stop_signal = False
+
+    def run(self):
+        while not self.stop_signal:
+            time.sleep(0.0001)
+            self.optimize()
+
+    def stop(self):
+        self.stop_signal = True
 
 
 
