@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 1.1.0
 
 #############################################################################################
 
 History:
+- v1.1.0: running version
 - v1.0.0: first init
 """
 
@@ -21,6 +22,7 @@ from tensorflow import keras
 import threading
 import time
 from matplotlib import pyplot as plt
+from texttable import Texttable
 
 from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
@@ -30,7 +32,6 @@ from architectures.agent import Agent
 
 ACTOR = 0
 CRITIC = 1
-scores = []
 
 
 class AsynchronousAdvantageActorCriticGlobal(Agent):
@@ -88,6 +89,9 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         self.debug = False
         self.delete_training_log(architecture='A3C')
 
+
+        self.global_train_queue = [[], [], [], [], []]
+        self.lock_queue = threading.Lock()
         # build neural nets
         self.model = self._build_network()
         self.graph = self._build_graph(model=self.model)
@@ -136,19 +140,16 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         """
         s_t = tf.placeholder(tf.float32, shape=(None, 100))
         a_t = tf.placeholder(tf.float32, shape=(None, self.output_dim))
-        r_t = tf.placeholder(tf.float32, shape=(None, ))
+        r_t = tf.placeholder(tf.float32, shape=(None, 1))
 
         p, v = model(s_t)
 
-        log_prob = tf.log(tf.reduce_sum(
-            p * a_t, axis=1, keep_dims=True) + 1e-10)
+        log_prob = tf.log(tf.reduce_sum(p * a_t, axis=1, keepdims=True) + 1e-10)
         advantage = r_t - v
 
         loss_policy = - log_prob * tf.stop_gradient(advantage)
-        loss_value = self.params['loss_value_coefficient'] * \
-            tf.square(advantage)
-        entropy = self.params['loss_entropy_coefficient'] * \
-            tf.reduce_sum(p * tf.log(p + 1e-10), axis=1, keep_dims=True)
+        loss_value = self.params['loss_value_coefficient'] * tf.square(advantage)
+        entropy = self.params['loss_entropy_coefficient'] * tf.reduce_sum(p * tf.log(p + 1e-10), axis=1, keepdims=True)
 
         loss_total = tf.reduce_mean(loss_policy + loss_value + entropy)
 
@@ -174,31 +175,100 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
             p, v = self.model.predict(state)
             return v
 
+    def n_step_queue(self, s, a, r, s_):
+        with self.lock_queue:
+            self.global_train_queue[0].append(s)
+            self.global_train_queue[1].append(a)
+            self.global_train_queue[2].append(r)
+
+            NONE_STATE = np.zeros((100, ))
+            if s_ is None:
+                self.global_train_queue[3].append(NONE_STATE)
+                self.global_train_queue[4].append(0.0)
+            else:
+                self.global_train_queue[3].append(s_)
+                self.global_train_queue[4].append(1.0)
+
+    def optimize(self):
+        # print(Font.yellow + 'train queue len: '+ str(len(self.global_train_queue[-1])) + Font.end)
+        if len(self.global_train_queue[-1]) < 32:
+            time.sleep(0)
+            return
+
+        with self.lock_queue:
+            # print(Font.yellow + 'inside' + Font.end)
+            # more thread could have passed without lock
+            if len(self.global_train_queue[-1]) < 32:
+                return 									# we can't yield inside lock
+            
+            # print(Font.yellow + 'inside 2' + Font.end)
+            s, a, r, s_, s_mask = self.global_train_queue
+            self.train_queue = [[], [], [], [], []]
+
+        s = np.vstack(s)
+        a = np.vstack(a)
+        r = np.vstack(r)
+        s_ = np.vstack(s_)
+        s_mask = np.vstack(s_mask)
+        p, v = self.model.predict(s_)
+        # r = r + self.gamma ** self.n_step_return * v * s_mask
+
+        # print(Font.yellow + 'Optimize' + Font.end)
+
+        s_t, a_t, r_t, minimize = self.graph
+        self.session.run(minimize, feed_dict={s_t: s, a_t: a, r_t: r})
+
     def do_training(self):
         agents = [AsynchronousAdvantageActorCriticAgent(index=i,
-                                                        session=self.session,
+                                                        n_step_queue=self.n_step_queue,
+                                                        optimize=self.optimize,
                                                         model=self.model,
-                                                        graph=self.graph,
                                                         env=self.env,
                                                         action_dim=self.output_dim,
                                                         state_shape=self.input_shape,
                                                         params=self.params) for i in range(self.threads)]
 
+        opts = [Optimizer(optimize=self.optimize)]
+
+        for opt in opts:
+            opt.start()
+
         for agent in agents:
             agent.start()
 
+
+        scores = []
+        Q_vals = []
+        names = ['Index', 'Episode', 'Epoch', 'Reward', 'Step Counter', 'Epsilon']
         while True:
-            time.sleep(10)
-            plot = [np.mean(scores[n:n+500])
-                    for n in range(0, len(scores)-500)]
-            plt.figure(figsize=(16, 12))
-            plt.plot(range(len(plot)), plot, 'b')
-            plt.xlabel('Episodes/500')
-            plt.ylabel('Mean scores over last 500 episodes')
-            plt.grid()
+            time.sleep(1)
+            t = Texttable()
+            for agent in agents:
+                index, episode, epoch, rew, step_counter, epsilon, q_vals = agent.get_info()
+                t.add_rows([names, [index, episode, epoch, rew, step_counter, epsilon]])
+                print(t.draw() + '\n\n')
+                # print('\nindex: {}/{} \nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
+                #       format(index, self.threads-1, episode, self.num_episodes, epoch,
+                #              self.num_epochs, rew, epsilon, step_counter))
+                scores.append(rew)
+                Q_vals.append(q_vals)
+            with open('scores.yml', 'w') as f:
+                yaml.dump(scores, f)
+            plot = [np.mean(scores[n:n+5])
+                    for n in range(0, len(scores)-5)]
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
+            ax1.plot(range(len(plot)), plot, 'r', label='Scores')
+            ax1.set_xlabel('Episodes/5')
+            ax1.set_ylabel('Mean scores over last 5 episodes')
+            ax2.plot(range(len(Q_vals)), Q_vals, 'b', label='Q values')
+            ax1.legend(fontsize=25)
+            ax2.legend(fontsize=25)
+            ax1.grid()
+            ax2.grid()
+            fig.tight_layout()
             plt.savefig('./a3c.pdf')
 
-        time.sleep(31)
+
         for agent in agents:
             agent.stop()
         for agent in agents:
@@ -217,13 +287,12 @@ class AsynchronousAdvantageActorCriticGlobal(Agent):
         print('–' * 30)
 
 
-
 class AsynchronousAdvantageActorCriticAgent(threading.Thread):
     def __init__(self,
+                 n_step_queue,
+                 optimize,
                  index: int,
-                 session,
                  model,
-                 graph,
                  env,
                  action_dim: int,
                  state_shape: tuple,
@@ -231,19 +300,17 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
 
         super(AsynchronousAdvantageActorCriticAgent, self).__init__()
 
+        self.n_step_queue = n_step_queue
+        self.optimize = optimize
         self.index = index
-        self.session = session
         self.model = model
-        self.graph = graph
         self.env = env
         self.action_dim = action_dim
         self.state_shape = state_shape
         self.mc = misc
         self.overblow_factor = 8
 
-        # s, a, r, s_, terminal mask
         self.local_train_queue = []
-        self.global_train_queue = [[], [], [], [], []]
         self.params = params
         self.gamma = self.params['gamma']
         self.num_epochs = self.params['num_epochs']
@@ -254,6 +321,7 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         self.n_step_return = self.params['n_step_return']
         self.rng = np.random.RandomState(self.params['random_seed'])
         self.debug = False
+        self.info = [(0, 0, 0, 0, 0, 0, 0)]
 
     def run(self):
         episode = 0
@@ -266,33 +334,52 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
                                            overblow_factor=self.overblow_factor,
                                            normalization=False).reshape(self.state_shape)
                 rew = 0
-                with open('scores.yml', 'w') as f:
-                    yaml.dump(scores, f)
                 for step in range(self.num_steps):
                     time.sleep(0.001)
                     action, q_vals = self.act(state)
                     obs, r, terminal, info = self.env.step(action)
                     self.calc_eps_decay(step_counter=step_counter)
-                    rew += r
                     # self.env.render()
                     next_state = self.mc.make_frame(obs, do_overblow=False,
                                                     overblow_factor=self.overblow_factor,
                                                     normalization=False).reshape(self.state_shape)
                     self.memory(state, action, r, next_state)
                     state = next_state
+                    rew += r
                     if step == self.num_steps - 1:
                         terminal = True
                         next_state = None
-                    self.train_episode(s=state, a=action, r=r, s_=next_state)
+                    # self.train_episode(terminal=terminal)
                     step_counter += 1
                     if terminal:
+                        next_state = None
+                        self.train_episode(terminal=terminal)
                         episode += 1
-                        self.optimize()
-                        print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
-                              format(episode, self.num_episodes, epoch,
-                                     self.num_epochs, rew, self.epsilon, step_counter))
-                        scores.append(rew)
+                        # self.optimize()
+                        self.set_info(self.index, episode,
+                                      epoch, rew, step_counter, self.epsilon, q_vals)
                         break
+
+    def stop(self):
+        self.stop_signal = True
+
+    def get_info(self) -> tuple:
+        """
+        return the scores list for one thread
+        Output:
+            (index:int, episode:int, epoch:int, rew:float, step_counter:int, epsilon:float, q_vals:float)
+        """
+        index = self.info[-1][0]
+        episode = self.info[-1][1]
+        epoch = self.info[-1][2]
+        rew = self.info[-1][3]
+        step_counter = self.info[-1][4]
+        epsilon = self.info[-1][5]
+        q_vals = self.info[-1][6]
+        return index, episode, epoch, rew, step_counter, epsilon, q_vals
+
+    def set_info(self, index, episode, epoch, rew, step_counter, epsilon, q_vals) -> None:
+        self.info.append((index, episode, epoch, rew, step_counter, epsilon, q_vals))
 
     def calc_eps_decay(self, step_counter: int) -> None:
         """
@@ -308,59 +395,24 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
             self.epsilon = -((self.params['epsilon'] - self.epsilon_min) /
                              self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
-
-    def n_step_queue(self, s, a, r, s_):
-            self.global_train_queue[1].append(s)
-            self.global_train_queue[2].append(a)
-            self.global_train_queue[3].append(r)
-
-            NONE_STATE = np.zeros((100, ))
-            if s_ is None:
-                self.global_train_queue[3].append(NONE_STATE)
-                self.global_train_queue[4].append(0.0)
-            else:
-                self.global_train_queue[3].append(s_)
-                self.global_train_queue[4].append(1.0)
-
-
-    def memory(self, state: np.array, action: int, reward: float, next_state: np.array) -> None:
+    def memory(self, s: np.array, a: int, r: float, s_: np.array) -> None:
         """
-        save <s, a, r, s', terminal> every step
+        save <s, a, r, s'> every step
         Input:
-            state (np.array): s
-            action (int): a
-            reward (float): r
-            next_state (np.array): s'
+            s (np.array): s
+            a (int): a
+            r (float): r
+            s_ (np.array): s'
         """
         act = np.zeros(self.action_dim)
-        act[action] = 1
-        self.local_train_queue.append((state, act, reward, next_state))
+        act[a] = 1
+        self.local_train_queue.append((s, act, r, s_))
 
-
-    def optimize(self):
-        if len(self.global_train_queue[0]) < 32:
-            time.sleep(0)
-            return
-        else:
-            s, a, r, s_, s_mask = self.global_train_queue
-            self.global_train_queue = [[], [], [], [], []]
-
-        s = np.vstack(s)
-        a = np.vstack(a)
-        r = np.vstack(r)
-        s_ = np.vstack(s_)
-        s_mask = np.vstack(s_mask)
-        p, v = self.model.predict(s_)
-        r = r + self.gamma ** self.n_step_return * v * s_mask
-
-        s_t, a_t, r_t, minimize = self.graph
-        self.session.run(minimize, feed_dict={s_t: s, a_t: a, r_t: r})
-
-
-
-    def train_episode(self, s, a, r, s_):
+    def train_episode(self, terminal: bool):
         """
         update the policy and target network every episode
+        Input:
+            terminal (bool): terminal flag
         """
         def get_sample(memory, n):
             r = 0.
@@ -370,13 +422,13 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
             _, _, _, s_ = memory[n-1]
             return s, a, r, s_
 
-        if s_ is None:
+        if terminal is True:
             while len(self.local_train_queue) > 0:
                 n = len(self.local_train_queue)
                 s, a, r, s_ = get_sample(self.local_train_queue, n)
                 self.n_step_queue(s, a, r, s_)
                 self.local_train_queue.pop(0)
-
+            # self.optimize()
 
     def act(self, state) -> (int, float):
         """
@@ -389,9 +441,24 @@ class AsynchronousAdvantageActorCriticAgent(threading.Thread):
         """
         s = state.reshape((1, self.state_shape[0]))
         policy, value = self.model.predict(s)
-        action = misc.eps_greedy(policy[0], self.epsilon, rng=self.rng)
+        rng = np.random.RandomState(np.random.randint(low=1,high=111))
+        action = misc.eps_greedy(policy[0], self.epsilon, rng=rng)
         # return np.random.choice(self.action_dim, size=1, p=policy)
-        return action, np.amax(policy[0])
+        return action, value[0]
+
+
+class Optimizer(threading.Thread):
+    def __init__(self, optimize):
+        super(Optimizer, self).__init__()
+        self.optimize = optimize
+        self.stop_signal = False
+
+    def run(self):
+        self.optimize()
+
+    def stop(self):
+        self.stop_signal = True
+
 
 
 if __name__ == '__main__':
