@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.1
+@version: 1.2.2
 
 #############################################################################################
 
 History:
+- v1.2.2: update doc and plot options
 - v1.2.1: break loop with signal
 - v1.2.0: plot loss
 - v1.1.0: first keras setup
@@ -26,7 +27,6 @@ import time
 from matplotlib import pyplot as plt
 from texttable import Texttable
 
-from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
 from architectures.misc import Font
 from architectures.agent import Agent
@@ -71,7 +71,6 @@ class A3CGlobal(Agent):
             self.env = env
         self.output_dim = output_dim  # number of actions
         self.l_rate = self.params['learning_rate']
-        self.minibatch_size = self.params['minibatch_size']
         self.gamma = self.params['gamma']
         self.n_step_return = self.params['n_step_return']
         self.epsilon = self.params['epsilon']
@@ -93,18 +92,19 @@ class A3CGlobal(Agent):
         keras.backend.set_session(self.sess)
         self.sess.run(tf.global_variables_initializer())
 
-    def _build_network(self) -> keras.models.Sequential:
+    def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
         """
         build network with A3C parameters
         Output:
-            network (keras.model): neural net for architecture
+            actor (keras.model): actor model
+            critic (keras.model): critic model
         """
         # layer_input = keras.Input(batch_shape=(None, self.input_shape))
         layer_input = keras.Input(batch_shape=(None, 100), name='input')
-        l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='glorot_uniform', name='dense')(layer_input)
+        l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
 
         out_actions = keras.layers.Dense(self.output_dim, activation='softmax', name='out_a')(l_dense)
-        out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='glorot_uniform', name='out_v')(l_dense)
+        out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
 
         model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
         actor = keras.Model(inputs=layer_input, outputs=out_actions)
@@ -146,7 +146,7 @@ class A3CGlobal(Agent):
         loss_actor = K.mean(loss + entropy)
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                            rho=0.9)
+                                            rho=0.9, decay=0.99)
         updates = optimizer.get_updates(loss_actor, self.actor.trainable_weights)
         train = K.function([self.actor.input, action, advantages], [loss_actor], updates=updates)
         return train
@@ -162,7 +162,7 @@ class A3CGlobal(Agent):
         loss_value = K.mean( K.square( discounted_reward - value))
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                             rho=0.9)
+                                             rho=0.9, decay=0.99)
         updates = optimizer.get_updates(loss_value, self.critic.trainable_weights)
         train = K.function([self.critic.input, discounted_reward], [loss_value], updates=updates)
         return train
@@ -204,7 +204,6 @@ class A3CGlobal(Agent):
         while True:
             time.sleep(0.1)
             t = Texttable()
-            stop_signals = []
             for agent in agents:
                 index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic = agent.get_info()
                 t.add_rows([names, [index, episode, epoch, rew, step_counter, epsilon]])
@@ -215,27 +214,34 @@ class A3CGlobal(Agent):
                 losses_critic.append(loss_critic)
             with open('scores.yml', 'w') as f:
                 yaml.dump(scores, f)
+            stop_signals = []
             for agent in agents:
                 stop_signals.append(agent.get_stop())
             if all(stop_signals):
+                for agent in agents:
+                    agent.join()
                 break
-            # plot = [np.mean(scores[n:n+5])
-            #         for n in range(0, len(scores)-5)]
+                
             fig, (ax1, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
-            # ax1.plot(range(len(plot)), plot, 'r', label='Scores')
-            ax1.plot(range(len(scores)), scores, 'r', label='Scores')
+            # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
+            if len(scores) <= 11:
+                ax1.plot(range(len(scores)), scores, 'r', label='Scores')
+            else:
+                plot = misc.smooth(np.array(scores), 11)
+                ax1.plot(range(len(plot)), plot, 'r', label='Scores')
             ax1.set_xlabel('Episodes')
             ax1.set_ylabel('Scores')
+            ax1.grid()
+            ax1.legend(fontsize=25)
+
             legend2left, = ax2left.plot(range(len(losses_actor)), losses_actor, 'b', label='loss actor')
             ax2right = ax2left.twinx()
             legend2right, = ax2right.plot(range(len(losses_critic)), losses_critic, 'r', label='loss critic')
             ax2left.set_xlabel('Episodes')
-            ax2left.set_ylabel('Episodes')
-            ax2right.set_ylabel('Episodes')
-            ax1.legend(fontsize=25)
-            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='center right')
-            ax1.grid()
+            ax2left.set_ylabel('Loss Actor', color='blue')
+            ax2right.set_ylabel('Loss Critic', color='red')
             ax2left.grid()
+            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='center right')
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
             plt.close(fig)
@@ -324,12 +330,12 @@ class A3CAgent(threading.Thread):
                         self.memory(state, action, reward)
                         state = next_state
                         step_counter += 1
-                        if step_counter == 80000:
+                        if step_counter == 500000:
                             self.stop_signal = True
                         if step == self.num_steps - 1:
                             terminal = True
                         if terminal:
-                            loss_actor, loss_critic = self.train_episode(done=rews != 50)
+                            loss_actor, loss_critic = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
                                             step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
                             break
@@ -397,7 +403,7 @@ class A3CAgent(threading.Thread):
         self.actions.append(act)
         self.rewards.append(reward)
 
-    def discount_rewards(self, rewards, done=True):
+    def discount_rewards(self, rewards, done=False):
         """
         calculate discounted rewards
         Input:
@@ -408,7 +414,7 @@ class A3CAgent(threading.Thread):
         """
         discounted_rewards = np.zeros_like(rewards)
         running_rew = 0
-        if not done:
+        if done:
             running_rew = self.critic.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))[0]
         for t in reversed(range(0, len(rewards))):
             running_rew = running_rew * self.gamma + rewards[t]
@@ -427,7 +433,9 @@ class A3CAgent(threading.Thread):
         """
         discounted_rewards = self.discount_rewards(self.rewards, done)
 
-        values = self.critic.predict(np.array(self.states))
+        next_states = [self.states[-1] for _ in range(len(self.states))]
+        # values = self.critic.predict(np.array(self.states))
+        values = self.critic.predict(np.array(next_states))
         values = np.reshape(values, len(values))
 
         advantages = discounted_rewards - values
