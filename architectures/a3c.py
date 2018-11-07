@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.2
+@version: 1.2.3
 
 #############################################################################################
 
 History:
+- v1.2.3: first use of simple flag
 - v1.2.2: update doc and plot options
 - v1.2.1: break loop with signal
 - v1.2.0: plot loss
@@ -99,28 +100,60 @@ class A3CGlobal(Agent):
             actor (keras.model): actor model
             critic (keras.model): critic model
         """
-        # layer_input = keras.Input(batch_shape=(None, self.input_shape))
-        layer_input = keras.Input(batch_shape=(None, 100), name='input')
-        l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
-
-        out_actions = keras.layers.Dense(self.output_dim, activation='softmax', name='out_a')(l_dense)
-        out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
-
-        model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
-        actor = keras.Model(inputs=layer_input, outputs=out_actions)
-        critic = keras.Model(inputs=layer_input, outputs=out_value)
-        actor._make_predict_function()
-        critic._make_predict_function()
-        model.summary()
-        self.model_yaml = model.to_yaml()
         
-        if self.debug:
-            print(Font.yellow + '–' * 100 + Font.end)
-            print(Font.yellow + 'Model: ' + Font.end)
-            print(model.to_yaml())
-            print(Font.yellow + '–' * 100 + Font.end)
+        if self.simple_a3c:
+            input_shape = (None,) + self.input_shape
+            # layer_input = keras.Input(batch_shape=(None, self.input_shape))
+            layer_input = keras.Input(batch_shape=input_shape, name='input')
+            l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
 
-        return actor, critic
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', name='out_a')(l_dense)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
+
+            model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
+            actor = keras.Model(inputs=layer_input, outputs=out_actions)
+            critic = keras.Model(inputs=layer_input, outputs=out_value)
+            actor._make_predict_function()
+            critic._make_predict_function()
+            model.summary()
+            self.model_yaml = model.to_yaml()
+        
+            if self.debug:
+                print(Font.yellow + '–' * 100 + Font.end)
+                print(Font.yellow + 'Model: ' + Font.end)
+                print(model.to_yaml())
+                print(Font.yellow + '–' * 100 + Font.end)
+
+            return actor, critic
+        else:
+            input_shape = (None,) + self.input_shape + (1,)  # (height, width, channels=1)
+            # first hidden layer
+            # input shape = (img_height, img_width, n_channels)
+            layer_input = keras.Input(batch_shape=input_shape)
+            l_hidden1 = keras.layers.Conv2D(filters=16, kernel_size=(8, 8),
+                                            strides=4, activation='relu',
+                                            kernel_initializer='he_uniform', data_format='channels_last')(layer_input)
+            # second hidden layer
+            l_hidden2 = keras.layers.Conv2D(filters=32, kernel_size=(4, 4),
+                                            strides=2, activation='relu', kernel_initializer='he_uniform')(l_hidden1)
+            # third hidden layer
+            l_flatten = keras.layers.Flatten()(l_hidden2)
+            l_full1 = keras.layers.Dense(
+                256, activation='relu', kernel_initializer='he_uniform')(l_flatten)
+            out_actions = keras.layers.Dense(
+                self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
+            out_value = keras.layers.Dense(
+                1, activation='linear', kernel_initializer='he_uniform')(l_full1)
+
+            model = keras.Model(inputs=[layer_input], outputs=[
+                                out_actions, out_value])
+            actor = keras.Model(inputs=layer_input, outputs=out_actions)
+            critic = keras.Model(inputs=layer_input, outputs=out_value)
+            actor._make_predict_function()
+            critic._make_predict_function()
+            model.summary()
+            self.model_yaml = model.to_yaml()
+            return actor, critic
 
 
     def _actor_optimizer(self):
@@ -141,7 +174,7 @@ class A3CGlobal(Agent):
         loss_policy = - log_prob * K.stop_gradient(advantages)
         loss = - K.sum(loss_policy)
         
-        entropy = self.params['loss_entropy_coefficient'] * K.sum(policy * K.log(policy + 1e-10), axis=1)
+        entropy = self.params['loss_entropy_coefficient'] * K.sum(policy * K.log(policy + 1e-10), axis=1, keepdims=True)
         
         loss_actor = K.mean(loss + entropy)
 
@@ -184,6 +217,7 @@ class A3CGlobal(Agent):
 
     def train(self):
         agents = [A3CAgent(index=i, 
+                simple=self.simple_a3c,
                 actor=self.actor, 
                 critic=self.critic, 
                 optimizer=self.optimizer, 
@@ -264,6 +298,7 @@ class A3CGlobal(Agent):
 class A3CAgent(threading.Thread):
     def __init__(self,
                  index: int,
+                 simple: bool,
                  actor,
                  critic,
                  optimizer,
@@ -275,6 +310,7 @@ class A3CAgent(threading.Thread):
         super(A3CAgent, self).__init__()
         
         self.index = index
+        self.simple_a3c = simple
         self.actor = actor
         self.critic = critic
         self.env = env
@@ -314,9 +350,15 @@ class A3CAgent(threading.Thread):
             for epoch in range(self.num_epochs):
                 for episode in range(self.num_episodes):
                     obs, _, _, _ = self.env.reset()
-                    state = self.mc.make_frame(obs, do_overblow=False,
+                    if self.simple_a3c:
+                        state = self.mc.make_frame(obs, do_overblow=False,
                                                     overblow_factor=self.overblow_factor,
-                                                    normalization=False).reshape(self.state_shape)
+                                                    normalization=True).reshape(self.state_shape)
+                    else:
+                        state = self.mc.make_frame(obs, do_overblow=True,
+                                                    overblow_factor=self.overblow_factor,
+                                                   normalization=False)[..., np.newaxis]
+                        
                     rews = 0
                     for step in range(self.num_steps):
                         action, q_vals = self.act(state)
@@ -324,9 +366,15 @@ class A3CAgent(threading.Thread):
                         self.calc_eps_decay(step_counter=step_counter)
                         rews += reward
                         self.env.render()
-                        next_state = self.mc.make_frame(obs, do_overblow=False,
+                        if self.simple_a3c:
+                            next_state = self.mc.make_frame(obs, do_overblow=False,
                                                          overblow_factor=self.overblow_factor,
-                                                         normalization=False).reshape(self.state_shape)
+                                                         normalization=True).reshape(self.state_shape)
+                        else:
+                            next_state = self.mc.make_frame(obs, do_overblow=True,
+                                                         overblow_factor=self.overblow_factor,
+                                                            normalization=False)[..., np.newaxis]
+
                         self.memory(state, action, reward)
                         state = next_state
                         step_counter += 1
@@ -415,7 +463,11 @@ class A3CAgent(threading.Thread):
         discounted_rewards = np.zeros_like(rewards)
         running_rew = 0
         if done:
-            running_rew = self.critic.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))[0]
+            if self.simple_a3c:
+                running_rew = self.critic.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))[0]
+            else:
+                running_rew = self.critic.predict(self.states[-1][np.newaxis, ...])[0]
+
         for t in reversed(range(0, len(rewards))):
             running_rew = running_rew * self.gamma + rewards[t]
             discounted_rewards[t] = running_rew
@@ -435,8 +487,12 @@ class A3CAgent(threading.Thread):
 
         next_states = [self.states[-1] for _ in range(len(self.states))]
         # values = self.critic.predict(np.array(self.states))
-        values = self.critic.predict(np.array(next_states))
-        values = np.reshape(values, len(values))
+        if self.simple_a3c:
+            # TODO: check if next_states is required or just states
+            values = self.critic.predict(np.array(next_states))
+            values = np.reshape(values, len(values))
+        else:
+            values = self.critic.predict(np.array(next_states))
 
         advantages = discounted_rewards - values
 
@@ -459,7 +515,10 @@ class A3CAgent(threading.Thread):
             action (int): action number
             policy (float): expected q_value
         """
-        s = state.reshape((1, self.state_shape[0]))
+        if self.simple_a3c:
+            s = state.reshape((1, self.state_shape[0]))
+        else:
+            s = state[np.newaxis,:,:,:]
         policy = self.actor.predict(s)
         action = misc.eps_greedy(policy[0], self.epsilon, rng=self.rng)
         # return np.random.choice(self.action_dim, size=1, p=policy)
