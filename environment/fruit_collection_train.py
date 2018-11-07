@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.4.0
+@version: 2.4.1
 
 #############################################################################################
 
 History:
+- v2.4.1: rename of AsynchronousAdvantageActorCritic to a3c
 - v2.4.0: use new environment step output
 - v2.3.2: delete framerate slowdown
 - v2.3.1: terminal output for training update
@@ -48,7 +49,7 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 # architectures
 ############################
-from architectures.a3c import AsynchronousAdvantageActorCriticGlobal
+from architectures.a3c import A3CGlobal
 # from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
@@ -104,13 +105,13 @@ class FruitCollectionTrain(FruitCollection):
                                 warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                 simple_dqn=self.simple, params=params)
 
-        self.a3c = AsynchronousAdvantageActorCriticGlobal(input_shape=self.input_shape,
-                                                          output_dim=self.env.nb_actions,
-                                                          warmstart=False,
-                                                          warmstart_path=None,
-                                                          simple_a3c=True,
-                                                          params=params,
-                                                          env=self.env)
+        self.a3c = A3CGlobal(input_shape=self.input_shape,
+                                output_dim=self.env.nb_actions,
+                                warmstart=False,
+                                warmstart_path=None,
+                                simple_a3c=True,
+                                params=params,
+                                env=self.env)
 
     def load_params(self, filename: str):
         """
@@ -244,7 +245,7 @@ class FruitCollectionTrain(FruitCollection):
                         break
 
     def main_a3c(self):
-        self.a3c.do_training()
+        self.a3c.train()
 
 
 @click.command()
