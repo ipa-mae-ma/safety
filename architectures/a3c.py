@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.2.1
 
 #############################################################################################
 
 History:
+- v1.2.1: break loop with signal
+- v1.2.0: plot loss
 - v1.1.0: first keras setup
 - v1.0.0: first init
 """
@@ -200,8 +202,9 @@ class A3CGlobal(Agent):
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon']
         while True:
-            time.sleep(1)
+            time.sleep(0.1)
             t = Texttable()
+            stop_signals = []
             for agent in agents:
                 index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic = agent.get_info()
                 t.add_rows([names, [index, episode, epoch, rew, step_counter, epsilon]])
@@ -212,16 +215,21 @@ class A3CGlobal(Agent):
                 losses_critic.append(loss_critic)
             with open('scores.yml', 'w') as f:
                 yaml.dump(scores, f)
-            plot = [np.mean(scores[n:n+5])
-                    for n in range(0, len(scores)-5)]
+            for agent in agents:
+                stop_signals.append(agent.get_stop())
+            if all(stop_signals):
+                break
+            # plot = [np.mean(scores[n:n+5])
+            #         for n in range(0, len(scores)-5)]
             fig, (ax1, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
-            ax1.plot(range(len(plot)), plot, 'r', label='Scores')
-            ax1.set_xlabel('Episodes/5')
-            ax1.set_ylabel('Mean scores over last 5 episodes')
+            # ax1.plot(range(len(plot)), plot, 'r', label='Scores')
+            ax1.plot(range(len(scores)), scores, 'r', label='Scores')
+            ax1.set_xlabel('Episodes')
+            ax1.set_ylabel('Scores')
             legend2left, = ax2left.plot(range(len(losses_actor)), losses_actor, 'b', label='loss actor')
             ax2right = ax2left.twinx()
             legend2right, = ax2right.plot(range(len(losses_critic)), losses_critic, 'r', label='loss critic')
-            ax2left.set_xlabel('Loss')
+            ax2left.set_xlabel('Episodes')
             ax2left.set_ylabel('Episodes')
             ax2right.set_ylabel('Episodes')
             ax1.legend(fontsize=25)
@@ -230,6 +238,7 @@ class A3CGlobal(Agent):
             ax2left.grid()
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
+            plt.close(fig)
 
 
     def save_weights(self, path: str) -> None:
@@ -285,40 +294,54 @@ class A3CAgent(threading.Thread):
         self.debug = False
 
         names = ['Index', 'Episode', 'Epoch',
-                 'Reward', 'Step Counter', 'Epsilon', 'Loss Actor', 'Loss Critic']
+                 'Reward', 'Step Counter', 'Epsilon', 
+                 'Q Vals', 'Loss Actor', 'Loss Critic']
         name_tuple = tuple([_ for _ in range(len(names))])
         self.info = [name_tuple]
+        self.stop_signal = False
 
 
     def run(self):
         step_counter = 0
         q_vals = 0
-        for epoch in range(self.num_epochs):
-            for episode in range(self.num_episodes):
-                obs, _, _, _ = self.env.reset()
-                state = self.mc.make_frame(obs, do_overblow=False,
-                                                overblow_factor=self.overblow_factor,
-                                                normalization=False).reshape(self.state_shape)
-                rews = 0
-                for step in range(self.num_steps):
-                    action, q_vals = self.act(state)
-                    obs, reward, terminal, info = self.env.step(action)
-                    self.calc_eps_decay(step_counter=step_counter)
-                    rews += reward
-                    # self.env.render()
-                    next_state = self.mc.make_frame(obs, do_overblow=False,
-                                                     overblow_factor=self.overblow_factor,
-                                                     normalization=False).reshape(self.state_shape)
-                    self.memory(state, action, reward)
-                    state = next_state
-                    step_counter += 1
-                    if step == self.num_steps - 1:
-                        terminal = True
-                    if terminal:
-                        loss_actor, loss_critic = self.train_episode(done=terminal)
-                        self.set_info(self.index, episode, epoch, rews, 
-                                        step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
-                        break
+        while not self.stop_signal:
+            for epoch in range(self.num_epochs):
+                for episode in range(self.num_episodes):
+                    obs, _, _, _ = self.env.reset()
+                    state = self.mc.make_frame(obs, do_overblow=False,
+                                                    overblow_factor=self.overblow_factor,
+                                                    normalization=False).reshape(self.state_shape)
+                    rews = 0
+                    for step in range(self.num_steps):
+                        action, q_vals = self.act(state)
+                        obs, reward, terminal, info = self.env.step(action)
+                        self.calc_eps_decay(step_counter=step_counter)
+                        rews += reward
+                        self.env.render()
+                        next_state = self.mc.make_frame(obs, do_overblow=False,
+                                                         overblow_factor=self.overblow_factor,
+                                                         normalization=False).reshape(self.state_shape)
+                        self.memory(state, action, reward)
+                        state = next_state
+                        step_counter += 1
+                        if step_counter == 80000:
+                            self.stop_signal = True
+                        if step == self.num_steps - 1:
+                            terminal = True
+                        if terminal:
+                            loss_actor, loss_critic = self.train_episode(done=rews != 50)
+                            self.set_info(self.index, episode, epoch, rews, 
+                                            step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
+                            break
+
+    def stop(self) -> None:
+        """
+        stops training
+        """
+        self.stop_signal = False
+
+    def get_stop(self) -> bool:
+        return self.stop_signal
 
     def get_info(self) -> tuple:
         """
@@ -380,6 +403,8 @@ class A3CAgent(threading.Thread):
         Input:
             rewards (list): list of rewards
             done (bool): terminal flag
+        Output:
+            discounted_rewards (np.array): array with discounted rewards
         """
         discounted_rewards = np.zeros_like(rewards)
         running_rew = 0
@@ -410,12 +435,10 @@ class A3CAgent(threading.Thread):
         loss_actor = self.optimizer[ACTOR]([self.states, self.actions, advantages])
         loss_critic = self.optimizer[CRITIC]([self.states, discounted_rewards])
         if self.debug:
-            print(Font.yellow + '-'*100 + Font.end)
+            print(Font.yellow + '-' * 100 + Font.end)
             print('loss actor:', loss_actor[0])
             print('loss critic:', loss_critic[0])
-            print(Font.yellow + '-'*100 + Font.end)
-        # action, advantages, minimize = self.optimizer[ACTOR]
-        # discounted_reward, minimize = self.optimizer[CRITIC]
+            print(Font.yellow + '-' * 100 + Font.end)
         self.states, self.actions, self.rewards = [], [], []
         return loss_actor[0], loss_critic[0]
 
