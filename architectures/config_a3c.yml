@@ -19,9 +19,6 @@ loss_entropy_coefficient: 0.01
 # RMSprop
 ################################
 learning_rate: 0.005
-gradient_momentum: 0.95
-squared_gradient_momentum: 0.95
-min_squared_gradient: 0.01
 
 ################################
 # epsilon greedy
@@ -55,9 +52,6 @@ mini:
   loss_entropy_coefficient: 0.01
   ################################
   learning_rate: 0.00001
-  gradient_momentum: 0.95
-  squared_gradient_momentum: 0.95
-  min_squared_gradient: 0.01
   ################################
   annealing: True
   epsilon: 1.0
@@ -82,9 +76,6 @@ small:
   loss_entropy_coefficient: 0.01
   ################################
   learning_rate: 0.005
-  gradient_momentum: 0.95
-  squared_gradient_momentum: 0.95
-  min_squared_gradient: 0.01
   ################################
   annealing: True
   epsilon: 1.0
