@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.2
+@version: 1.2.0
 
 #############################################################################################
 
 History:
+- v1.2.0: add colors to Font class
+- v1.1.3: add smooth function
 - v1.1.2: use normalization flag
 - v1.1.1: print yellow text function
 - v1.1.0: update:
@@ -29,16 +31,24 @@ History:
 import numpy as np
 
 class Font:
-    purple = '\033[95m'
-    cyan = '\033[96m'
-    darkcyan = '\033[36m'
-    blue = '\033[94m'
-    green = '\033[92m'
-    yellow = '\033[93m'
-    red = '\033[91m'
-    bgblue = '\033[44m'
+    backgroundblue = '\033[44m'
     bold = '\033[1m'
     underline = '\033[4m'
+    black = '\033[30m'
+    red = '\033[31m'
+    green = '\033[32m'
+    orange = '\033[33m'
+    blue = '\033[34m'
+    purple = '\033[35m'
+    cyan = '\033[36m'
+    yellow = '\033[93m'
+    pink = '\033[95m'
+    lightcyan = '\033[96m'
+    lightblue = '\033[94m'
+    lightgreen = '\033[92m'
+    lightred = '\033[91m'
+    lightgrey = '\033[37m'
+    darkgrey = '\033[90m'
     end = '\033[0m'
 
 
@@ -338,3 +348,59 @@ def make_frame(observation, do_overblow=True, overblow_factor=8, normalization: 
         frame = overblow(input_array=frame, factor=overblow_factor)
     # frame dim = (obs.shape)
     return frame
+
+
+def smooth(x, window_len=11, window='hanning'):
+    """smooth the data using a window with requested size.
+
+    This method is based on the convolution of a scaled window with the signal.
+    The signal is prepared by introducing reflected copies of the signal 
+    (with the window size) in both ends so that transient parts are minimized
+    in the begining and end part of the output signal.
+
+    input:
+        x: the input signal 
+        window_len: the dimension of the smoothing window; should be an odd integer
+        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+            flat window will produce a moving average smoothing.
+
+    output:
+        the smoothed signal
+
+    example:
+
+    t=linspace(-2,2,0.1)
+    x=sin(t)+randn(len(t))*0.1
+    y=smooth(x)
+
+    see also: 
+
+    numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+    scipy.signal.lfilter
+
+    TODO: the window parameter could be the window itself if an array instead of a string
+    NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
+    """
+
+    if x.ndim != 1:
+        raise ValueError("smooth only accepts 1 dimension arrays.")
+
+    if x.size < window_len:
+        raise ValueError("Input vector needs to be bigger than window size.")
+
+    if window_len < 3:
+        return x
+
+    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+        raise ValueError(
+            "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
+
+    s = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
+    # print(len(s))
+    if window == 'flat':  # moving average
+        w = np.ones(window_len, 'd')
+    else:
+        w = eval('np.'+window+'(window_len)')
+
+    y = np.convolve(w/w.sum(), s, mode='valid')
+    return y
