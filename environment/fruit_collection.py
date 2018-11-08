@@ -406,8 +406,7 @@ class FruitCollection(object):
             fruit_reward = 0.
         if self.lives == 0:
             self.game_over = True
-        self.step_id += 1
-        return self.get_state(), ghost_reward + fruit_reward + wall_reward, \
+        return self.get_state(), ghost_reward + fruit_reward + wall_reward + self.reward_scheme['step'], \
                self.game_over, {'fruit': caught_fruit_idx, 'ghost': caught_ghost, 'head_reward': head_reward,
                                 'hit_wall': hit_wall}
 
