@@ -129,7 +129,7 @@ class A3CGlobal(Agent):
             input_shape = (None,) + self.input_shape + (1,)  # (height, width, channels=1)
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
-            layer_input = keras.Input(batch_shape=input_shape)
+            layer_input = keras.Input(batch_shape=(None, 80, 80, 1))
             l_hidden1 = keras.layers.Conv2D(filters=16, kernel_size=(8, 8),
                                             strides=4, activation='relu',
                                             kernel_initializer='he_uniform', data_format='channels_last')(layer_input)
@@ -171,15 +171,19 @@ class A3CGlobal(Agent):
         policy = self.actor.output
 
         log_prob = K.log( K.sum(policy * action, axis=1) + 1e-10)
-        loss_policy = - log_prob * K.stop_gradient(advantages)
+        loss_policy = log_prob * K.stop_gradient(advantages)
         loss = - K.sum(loss_policy)
         
-        entropy = self.params['loss_entropy_coefficient'] * K.sum(policy * K.log(policy + 1e-10), axis=1, keepdims=True)
+        beta = self.params['loss_entropy_coefficient']
+        entropy = beta * K.sum(policy * K.log(policy + 1e-10))
         
-        loss_actor = K.mean(loss + entropy)
+        # loss_actor = K.mean(loss + entropy)
+        # loss_actor = loss + entropy
+        loss_actor = loss - entropy
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                            rho=0.9, decay=0.99)
+                                            rho=0.9)
+                                            # decay=0.99)
         updates = optimizer.get_updates(loss_actor, self.actor.trainable_weights)
         train = K.function([self.actor.input, action, advantages], [loss_actor], updates=updates)
         return train
@@ -192,10 +196,12 @@ class A3CGlobal(Agent):
         discounted_reward = K.placeholder(shape=(None, ))
 
         value = self.critic.output
+        # loss_value = K.mean( K.square( discounted_reward - value))
         loss_value = K.mean( K.square( discounted_reward - value))
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                             rho=0.9, decay=0.99)
+                                             rho=0.9)
+                                             #, decay=0.99)
         updates = optimizer.get_updates(loss_value, self.critic.trainable_weights)
         train = K.function([self.critic.input, discounted_reward], [loss_value], updates=updates)
         return train
@@ -275,7 +281,7 @@ class A3CGlobal(Agent):
             ax2left.set_ylabel('Loss Actor', color='blue')
             ax2right.set_ylabel('Loss Critic', color='red')
             ax2left.grid()
-            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='center right')
+            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='upper right')
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
             plt.close(fig)
@@ -323,6 +329,7 @@ class A3CAgent(threading.Thread):
         self.states = []
         self.rewards = []
         self.actions = []
+        self.next_states = []
 
         self.params = params
         self.gamma = self.params['gamma']
@@ -361,6 +368,7 @@ class A3CAgent(threading.Thread):
                         
                     rews = 0
                     for step in range(self.num_steps):
+                        # time.sleep(0.1)
                         action, q_vals = self.act(state)
                         obs, reward, terminal, info = self.env.step(action)
                         self.calc_eps_decay(step_counter=step_counter)
@@ -369,13 +377,13 @@ class A3CAgent(threading.Thread):
                         if self.simple_a3c:
                             next_state = self.mc.make_frame(obs, do_overblow=False,
                                                          overblow_factor=self.overblow_factor,
-                                                         normalization=True).reshape(self.state_shape)
+                                                         normalization=False).reshape(self.state_shape)
                         else:
                             next_state = self.mc.make_frame(obs, do_overblow=True,
                                                          overblow_factor=self.overblow_factor,
                                                             normalization=False)[..., np.newaxis]
 
-                        self.memory(state, action, reward)
+                        self.memory(state, action, reward, next_state)
                         state = next_state
                         step_counter += 1
                         if step_counter == 500000:
@@ -435,21 +443,21 @@ class A3CAgent(threading.Thread):
             self.epsilon = -((self.params['epsilon'] - self.epsilon_min) /
                              self.params['eps_max_frame']) * step_counter + self.params['epsilon']
 
-    def memory(self, state: np.array, action: int, reward: float) -> None:
+    def memory(self, state: np.array, action: int, reward: float, next_state: np.array) -> None:
         """
-        save <s, a, r, s', terminal> every step
+        save <s, a, r, s'> every step
         Input:
             state (np.array): s
             action (int): a
             reward (float): r
             next_state (np.array): s'
-            terminal (float): 1.0 if terminal else 0.0
         """
         self.states.append(state)
         act = np.zeros(self.action_dim)
         act[action] = 1
         self.actions.append(act)
         self.rewards.append(reward)
+        self.next_states.append(next_state)
 
     def discount_rewards(self, rewards, done=False):
         """
@@ -468,7 +476,8 @@ class A3CAgent(threading.Thread):
             else:
                 running_rew = self.critic.predict(self.states[-1][np.newaxis, ...])[0]
 
-        for t in reversed(range(0, len(rewards))):
+        discounted_rewards[-1] = running_rew
+        for t in reversed(range(0, len(rewards)-1)):
             running_rew = running_rew * self.gamma + rewards[t]
             discounted_rewards[t] = running_rew
         return discounted_rewards
@@ -485,14 +494,13 @@ class A3CAgent(threading.Thread):
         """
         discounted_rewards = self.discount_rewards(self.rewards, done)
 
-        next_states = [self.states[-1] for _ in range(len(self.states))]
-        # values = self.critic.predict(np.array(self.states))
         if self.simple_a3c:
             # TODO: check if next_states is required or just states
-            values = self.critic.predict(np.array(next_states))
+            values = self.critic.predict(np.array(self.next_states))
+            # values = self.critic.predict(np.array(self.states))
             values = np.reshape(values, len(values))
         else:
-            values = self.critic.predict(np.array(next_states))
+            values = self.critic.predict(np.array(self.next_states))
 
         advantages = discounted_rewards - values
 
@@ -503,7 +511,7 @@ class A3CAgent(threading.Thread):
             print('loss actor:', loss_actor[0])
             print('loss critic:', loss_critic[0])
             print(Font.yellow + '-' * 100 + Font.end)
-        self.states, self.actions, self.rewards = [], [], []
+        self.states, self.actions, self.rewards, self.next_states = [], [], [], []
         return loss_actor[0], loss_critic[0]
 
     def act(self, state) -> (int, float):
@@ -521,8 +529,13 @@ class A3CAgent(threading.Thread):
             s = state[np.newaxis,:,:,:]
         policy = self.actor.predict(s)
         action = misc.eps_greedy(policy[0], self.epsilon, rng=self.rng)
-        # return np.random.choice(self.action_dim, size=1, p=policy)
+        # if self.debug:
+        #     print(Font.yellow + 'ACT' + Font.end)
+        #     print('action: ', np.random.choice(
+        #         self.action_dim, size=1, p=policy[0])[0])
+        # return np.random.choice(self.action_dim, size=1, p=policy[0])[0], np.max(policy[0])
         return action, np.max(policy[0])
+        # return np.argmax(policy[0]), np.max(policy[0])
 
 
 if __name__ == '__main__':
