@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.3
+@version: 2.0.0
 
 #############################################################################################
 
 History:
+- v2.0.0: support complex conv net
 - v1.2.3: first use of simple flag
 - v1.2.2: update doc and plot options
 - v1.2.1: break loop with signal
@@ -171,19 +172,19 @@ class A3CGlobal(Agent):
         policy = self.actor.output
 
         log_prob = K.log( K.sum(policy * action, axis=1) + 1e-10)
-        loss_policy = log_prob * K.stop_gradient(advantages)
-        loss = - K.sum(loss_policy)
+        loss_policy = - log_prob * K.stop_gradient(advantages)
+        loss = K.sum(loss_policy)
         
         beta = self.params['loss_entropy_coefficient']
         entropy = beta * K.sum(policy * K.log(policy + 1e-10))
         
         # loss_actor = K.mean(loss + entropy)
-        # loss_actor = loss + entropy
-        loss_actor = loss - entropy
+        loss_actor = loss + entropy
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
                                             rho=0.9)
                                             # decay=0.99)
+        # optimizer = keras.optimizers.Adam(lr=self.l_rate)
         updates = optimizer.get_updates(loss_actor, self.actor.trainable_weights)
         train = K.function([self.actor.input, action, advantages], [loss_actor], updates=updates)
         return train
@@ -202,6 +203,7 @@ class A3CGlobal(Agent):
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
                                              rho=0.9)
                                              #, decay=0.99)
+        # optimizer = keras.optimizers.Adam(lr=self.l_rate)
         updates = optimizer.get_updates(loss_value, self.critic.trainable_weights)
         train = K.function([self.critic.input, discounted_reward], [loss_value], updates=updates)
         return train
@@ -501,6 +503,7 @@ class A3CAgent(threading.Thread):
             values = np.reshape(values, len(values))
         else:
             values = self.critic.predict(np.array(self.next_states))
+            values = np.reshape(values, len(values))
 
         advantages = discounted_rewards - values
 
