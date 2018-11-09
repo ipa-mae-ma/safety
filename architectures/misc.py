@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: miscellaneous functions for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.0
+@version: 1.2.1
 
 #############################################################################################
 
 History:
+- v1.2.1: update frame output
 - v1.2.0: add colors to Font class
 - v1.1.3: add smooth function
 - v1.1.2: use normalization flag
@@ -264,14 +265,14 @@ def eps_greedy(q_vals, eps, rng: np.random.seed()) -> int:
         action (int): random action with probability of eps; argmax Q(s, .) with probability of (1-eps)
     """
     # you might want to use random.random() to implement random exploration
-    #   number of actions can be read off from len(q_vals[state])
+    #   number of actions can be read off from len(q_vals)
     # import random
     if rng.rand() <= eps:
     # if random.random() <= eps:
         # np.random(0, 4) -> x \in [0,3]
         action = rng.randint(0, len(q_vals))
         # random.randint(0, 4) -> x \in [0,4]
-        # action = random.randint(0, len(q_vals[state]) - 1)
+        # action = random.randint(0, len(q_vals) - 1)
     else:
         action = np.argmax(q_vals)
     return action
@@ -337,13 +338,17 @@ def make_frame(observation, do_overblow=True, overblow_factor=8, normalization: 
     WALL = (80, 80, 80)
     frame = np.zeros(shape=observation[0, ...].shape, dtype=np.float32)
     # wall
-    frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=normalization)
+    # frame[observation[0, ...] != 0] = rgb2grayscale(WALL, normalization=normalization)
+    frame[observation[0, ...] != 0] = 0.0
     # fruit
-    frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=normalization)
+    # frame[observation[1, ...] != 0] = rgb2grayscale(BLUE, normalization=normalization)
+    frame[observation[1, ...] != 0] = 1.0
     # pacman
-    frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=normalization)
+    # frame[observation[2, ...] != 0] = rgb2grayscale(WHITE, normalization=normalization)
+    frame[observation[2, ...] != 0] = 0.3
     # ghosts
-    frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=normalization)
+    # frame[observation[3, ...] != 0] = rgb2grayscale(RED, normalization=normalization)
+    frame[observation[3, ...] != 0] = 0.6
     if do_overblow:
         frame = overblow(input_array=frame, factor=overblow_factor)
     # frame dim = (obs.shape)
