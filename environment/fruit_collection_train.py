@@ -101,15 +101,15 @@ class FruitCollectionTrain(FruitCollection):
             self.input_shape = (self.input_shape[0] * self.overblow_factor,
                             self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
-        self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
-                                warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
-                                simple_dqn=self.simple, params=params)
+        # self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
+        #                         warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
+        #                         simple_dqn=self.simple, params=params)
 
         self.a3c = A3CGlobal(input_shape=self.input_shape,
                                 output_dim=self.env.nb_actions,
                                 warmstart=False,
                                 warmstart_path=None,
-                                simple_a3c=True,
+                                simple_a3c=self.simple,
                                 params=params,
                                 env=self.env)
 
