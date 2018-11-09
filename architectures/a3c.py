@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.0
+@version: 2.0.2
 
 #############################################################################################
 
 History:
+- v2.0.2: update discounted rewards
+- v2.0.1: add dropout layer
 - v2.0.0: support complex conv net
 - v1.2.3: first use of simple flag
 - v1.2.2: update doc and plot options
@@ -137,14 +139,14 @@ class A3CGlobal(Agent):
             # second hidden layer
             l_hidden2 = keras.layers.Conv2D(filters=32, kernel_size=(4, 4),
                                             strides=2, activation='relu', kernel_initializer='he_uniform')(l_hidden1)
+            dropout = keras.layers.Dropout(.3)(l_hidden2)
             # third hidden layer
-            l_flatten = keras.layers.Flatten()(l_hidden2)
+            # l_flatten = keras.layers.Flatten()(l_hidden2)
+            l_flatten = keras.layers.Flatten()(dropout)
             l_full1 = keras.layers.Dense(
                 256, activation='relu', kernel_initializer='he_uniform')(l_flatten)
-            out_actions = keras.layers.Dense(
-                self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
-            out_value = keras.layers.Dense(
-                1, activation='linear', kernel_initializer='he_uniform')(l_full1)
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full1)
 
             model = keras.Model(inputs=[layer_input], outputs=[
                                 out_actions, out_value])
@@ -172,14 +174,14 @@ class A3CGlobal(Agent):
         policy = self.actor.output
 
         log_prob = K.log( K.sum(policy * action, axis=1) + 1e-10)
-        loss_policy = - log_prob * K.stop_gradient(advantages)
+        loss_policy = log_prob * K.stop_gradient(advantages)
         loss = K.sum(loss_policy)
         
         beta = self.params['loss_entropy_coefficient']
-        entropy = beta * K.sum(policy * K.log(policy + 1e-10))
+        entropy = - beta * K.sum(policy * K.log(policy + 1e-10))
         
-        # loss_actor = K.mean(loss + entropy)
-        loss_actor = loss + entropy
+        loss_actor = K.mean(loss + entropy)
+        loss_actor = tf.clip_by_value(loss_actor, -1000.0, +1000.0)
 
         optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
                                             rho=0.9)
@@ -360,13 +362,15 @@ class A3CAgent(threading.Thread):
                 for episode in range(self.num_episodes):
                     obs, _, _, _ = self.env.reset()
                     if self.simple_a3c:
+                        norm = True
                         state = self.mc.make_frame(obs, do_overblow=False,
                                                     overblow_factor=self.overblow_factor,
-                                                    normalization=True).reshape(self.state_shape)
+                                                    normalization=norm).reshape(self.state_shape)
                     else:
+                        norm = True
                         state = self.mc.make_frame(obs, do_overblow=True,
                                                     overblow_factor=self.overblow_factor,
-                                                   normalization=False)[..., np.newaxis]
+                                                   normalization=norm)[..., np.newaxis]
                         
                     rews = 0
                     for step in range(self.num_steps):
@@ -379,11 +383,11 @@ class A3CAgent(threading.Thread):
                         if self.simple_a3c:
                             next_state = self.mc.make_frame(obs, do_overblow=False,
                                                          overblow_factor=self.overblow_factor,
-                                                         normalization=False).reshape(self.state_shape)
+                                                         normalization=norm).reshape(self.state_shape)
                         else:
                             next_state = self.mc.make_frame(obs, do_overblow=True,
                                                          overblow_factor=self.overblow_factor,
-                                                            normalization=False)[..., np.newaxis]
+                                                            normalization=norm)[..., np.newaxis]
 
                         self.memory(state, action, reward, next_state)
                         state = next_state
@@ -391,7 +395,10 @@ class A3CAgent(threading.Thread):
                         if step_counter == 500000:
                             self.stop_signal = True
                         if step == self.num_steps - 1:
-                            terminal = True
+                            loss_actor, loss_critic = self.train_episode(done=terminal)
+                            self.set_info(self.index, episode, epoch, rews, 
+                                            step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
+                            break
                         if terminal:
                             loss_actor, loss_critic = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
@@ -472,15 +479,14 @@ class A3CAgent(threading.Thread):
         """
         discounted_rewards = np.zeros_like(rewards)
         running_rew = 0
-        if done:
+        if not done:
             if self.simple_a3c:
                 running_rew = self.critic.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))[0]
             else:
                 running_rew = self.critic.predict(self.states[-1][np.newaxis, ...])[0]
 
-        discounted_rewards[-1] = running_rew
-        for t in reversed(range(0, len(rewards)-1)):
-            running_rew = running_rew * self.gamma + rewards[t]
+        for t in reversed(range(0, len(rewards))):
+            running_rew = rewards[t] + self.gamma * running_rew
             discounted_rewards[t] = running_rew
         return discounted_rewards
 
@@ -494,17 +500,14 @@ class A3CAgent(threading.Thread):
             loss_actor (float): loss of optimizer
             loss_critic (float): loss of optimizer
         """
+        next_states = [self.next_states[-1] for _ in range(len(self.next_states))]
+
+        # values = self.critic.predict(np.array(self.next_states))
+        # values = self.critic.predict(np.array(next_states))
+        values = self.critic.predict(np.array(self.states))
+        values = np.reshape(values, len(values))
+
         discounted_rewards = self.discount_rewards(self.rewards, done)
-
-        if self.simple_a3c:
-            # TODO: check if next_states is required or just states
-            values = self.critic.predict(np.array(self.next_states))
-            # values = self.critic.predict(np.array(self.states))
-            values = np.reshape(values, len(values))
-        else:
-            values = self.critic.predict(np.array(self.next_states))
-            values = np.reshape(values, len(values))
-
         advantages = discounted_rewards - values
 
         loss_actor = self.optimizer[ACTOR]([self.states, self.actions, advantages])
@@ -535,10 +538,10 @@ class A3CAgent(threading.Thread):
         # if self.debug:
         #     print(Font.yellow + 'ACT' + Font.end)
         #     print('action: ', np.random.choice(
-        #         self.action_dim, size=1, p=policy[0])[0])
-        # return np.random.choice(self.action_dim, size=1, p=policy[0])[0], np.max(policy[0])
-        return action, np.max(policy[0])
+        #         self.action_dim, size=1, p=policy[0]))
+        # return np.random.choice(self.action_dim, size=1, p=policy[0]), np.max(policy[0])
         # return np.argmax(policy[0]), np.max(policy[0])
+        return action, np.max(policy[0])
 
 
 if __name__ == '__main__':
