@@ -41,7 +41,7 @@ mini:
   gamma: 0.99
   replay_memory_size: 10000
   ################################
-  threads: 4
+  threads: 1
   n_step_return: 8
   loss_value_coefficient: 0.5
   loss_entropy_coefficient: 0.01
@@ -51,9 +51,9 @@ mini:
   annealing: True
   epsilon: 1.0
   epsilon_min: 0.1
-  eps_max_frame: 500000
+  eps_max_frame: 150000
   ################################
-  num_epochs: 5
+  num_epochs: 20
   num_episodes: 100
   num_steps: 300
   random_seed: 1234
