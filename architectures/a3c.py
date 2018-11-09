@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.0.0
+@version: 3.0.2
 
 #############################################################################################
 
 History:
+- v3.0.2: output entropy
+- v3.0.1: add random number in [0.01, 0.3] to epsilon
 - v3.0.0: use only one model for policy and value
 - v2.0.2: update discounted rewards
 - v2.0.1: add dropout layer
@@ -147,8 +149,7 @@ class A3CGlobal(Agent):
             out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
             out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full1)
 
-            model = keras.Model(inputs=[layer_input], outputs=[
-                                out_actions, out_value])
+            model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             model._make_predict_function()
             model.summary()
             self.model_yaml = model.to_yaml()
@@ -184,7 +185,7 @@ class A3CGlobal(Agent):
         loss_value = alpha * K.mean(K.square(advantages))
         
 
-        loss_total = - loss_actor + entropy + loss_value
+        loss_total = loss_actor - entropy + loss_value
 
 
         # optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
@@ -197,17 +198,17 @@ class A3CGlobal(Agent):
 
         optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
         # Compute the gradients for a list of variables.
-        # minimize = optimizer.minimize(loss_total)
-        minimize_actor = optimizer.minimize(- loss_actor + entropy)
-        minimize_critic = optimizer.minimize(loss_value)
+        minimize = optimizer.minimize(loss_total)
+        
         grads_and_vars = optimizer.compute_gradients(loss_total)
   
         # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
         # need to the 'gradient' part, for example cap them, etc.
+        # TODO: check for lower clipping values
         capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.5, +0.5), gv[1]) for gv in grads_and_vars]
         train_op = optimizer.apply_gradients(capped_grads_and_vars)
         train = K.function([self.model.input, action, discounted_reward], 
-                            [loss_actor, loss_value], updates=[train_op])
+                            [loss_actor, loss_value, entropy], updates=[train_op])
                             # [loss_actor, loss_value], updates=[minimize_actor, minimize_critic])
                             # [loss_actor, loss_value], updates=[minimize])
         return train
@@ -229,19 +230,21 @@ class A3CGlobal(Agent):
         Q_vals = []
         losses_actor = []
         losses_critic = []
+        entropies = []
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon']
         while True:
             time.sleep(0.1)
             t = Texttable()
             for agent in agents:
-                index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic = agent.get_info()
+                index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic, entropy = agent.get_info()
                 t.add_rows([names, [index, episode, epoch, rew, step_counter, epsilon]])
                 print(t.draw() + '\n\n')
                 scores.append(rew)
                 Q_vals.append(q_vals)
                 losses_actor.append(loss_actor)
                 losses_critic.append(loss_critic)
+                entropies.append(entropy)
             with open('scores.yml', 'w') as f:
                 yaml.dump(scores, f)
             stop_signals = []
@@ -267,11 +270,12 @@ class A3CGlobal(Agent):
             legend2left, = ax2left.plot(range(len(losses_actor)), losses_actor, 'b', label='loss actor')
             ax2right = ax2left.twinx()
             legend2right, = ax2right.plot(range(len(losses_critic)), losses_critic, 'r', label='loss critic')
+            legend2right2, = ax2right.plot(range(len(entropies)), entropies, 'g', label='entropy')
             ax2left.set_xlabel('Episodes')
             ax2left.set_ylabel('Loss Actor', color='blue')
             ax2right.set_ylabel('Loss Critic', color='red')
             ax2left.grid()
-            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='upper right')
+            plt.legend(handles=[legend2left, legend2right, legend2right2], fontsize=25, loc='upper right')
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
             plt.close(fig)
@@ -283,8 +287,7 @@ class A3CGlobal(Agent):
         Input:
             path (str): filepath
         """
-        self.actor.save_weights(filepath='actor_'+ path)
-        self.critic.save_weights(filepath='critic_' + path)
+        self.model.save_weights(filepath=path)
 
     def main(self):
         print('A3C here')
@@ -324,7 +327,8 @@ class A3CAgent(threading.Thread):
         self.num_epochs = self.params['num_epochs']
         self.num_episodes = self.params['num_episodes']
         self.num_steps = self.params['num_steps']
-        self.epsilon = self.params['epsilon']
+        self.epsilon = min(self.params['epsilon'] + np.random.randint(low=1, high=30) / 100, 1.0)
+        self.epsilon_start = self.epsilon
         self.epsilon_min = self.params['epsilon_min']
         self.n_step_return = self.params['n_step_return']
         self.rng = np.random.RandomState(self.params['random_seed'])
@@ -332,7 +336,7 @@ class A3CAgent(threading.Thread):
 
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon', 
-                 'Q Vals', 'Loss Actor', 'Loss Critic']
+                 'Q Vals', 'Loss Actor', 'Loss Critic', 'Entropy']
         name_tuple = tuple([_ for _ in range(len(names))])
         self.info = [name_tuple]
         self.stop_signal = False
@@ -376,12 +380,13 @@ class A3CAgent(threading.Thread):
                         self.memory(state, action, reward, next_state)
                         state = next_state
                         step_counter += 1
-                        if step_counter == 5000000:
+                        if step_counter == self.num_epochs * self.num_episodes * self.num_steps - 10:
                             self.stop_signal = True
                         if terminal or step == self.num_steps - 1:
-                            loss_actor, loss_critic = self.train_episode(done=terminal)
+                            loss_actor, loss_critic, entropy = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
-                                            step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
+                                            step_counter, self.epsilon, q_vals, 
+                                            loss_actor, loss_critic, entropy)
                             break
 
     def stop(self) -> None:
@@ -410,11 +415,14 @@ class A3CAgent(threading.Thread):
         q_vals = self.info[-1][6]
         loss_actor = self.info[-1][7]
         loss_critic = self.info[-1][8]
-        return index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic
+        entropy = self.info[-1][9]
+        return index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic, entropy
 
-    def set_info(self, index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic) -> None:
+    def set_info(self, index, episode, epoch, rew, 
+                step_counter, epsilon, q_vals, 
+                loss_actor, loss_critic, entropy) -> None:
         self.info.append((index, episode, epoch, rew, step_counter,
-                          epsilon, q_vals, loss_actor, loss_critic))
+                          epsilon, q_vals, loss_actor, loss_critic, entropy))
 
 
     def calc_eps_decay(self, step_counter: int) -> None:
@@ -429,7 +437,7 @@ class A3CAgent(threading.Thread):
         #     self.epsilon = self.epsilon_min
         if self.epsilon > self.epsilon_min:
             self.epsilon = -((self.params['epsilon'] - self.epsilon_min) /
-                             self.params['eps_max_frame']) * step_counter + self.params['epsilon']
+                             self.params['eps_max_frame']) * step_counter + self.epsilon_start
 
     def memory(self, state: np.array, action: int, reward: float, next_state: np.array) -> None:
         """
@@ -462,7 +470,7 @@ class A3CAgent(threading.Thread):
             if self.simple_a3c:
                 _, running_rew = self.model.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))
             else:
-                _, running_rew = self.model.predict(self.states[-1][np.newaxis, ...])[0]
+                _, running_rew = self.model.predict(self.states[-1][np.newaxis, ...])
 
         for t in reversed(range(0, len(rewards))):
             running_rew = rewards[t] + self.gamma * running_rew
@@ -486,8 +494,8 @@ class A3CAgent(threading.Thread):
         advantages = discounted_rewards - values
 
         # input: [self.actor.input, action, advantages, discounted_reward]
-        # output: [loss_actor, loss_value]
-        loss_actor, loss_value = self.optimizer([self.states, self.actions, discounted_rewards])
+        # output: [loss_actor, loss_value, entropy]
+        loss_actor, loss_value, entropy = self.optimizer([self.states, self.actions, discounted_rewards])
 
         if self.debug:
             print(Font.yellow + '-' * 100 + Font.end)
@@ -495,7 +503,7 @@ class A3CAgent(threading.Thread):
             print('loss critic:', loss_value)
             print(Font.yellow + '-' * 100 + Font.end)
         self.states, self.actions, self.rewards, self.next_states = [], [], [], []
-        return loss_actor, loss_value
+        return loss_actor, loss_value, entropy
 
     def act(self, state) -> (int, float):
         """
@@ -516,7 +524,9 @@ class A3CAgent(threading.Thread):
             print('action: ', np.random.choice(
                 self.action_dim, size=1, p=policy[0]))
         import random
-        if random.random() <= self.epsilon:
+        # clip epsilon to 1.0
+        eps = min(self.epsilon, 1.0)
+        if random.random() <= eps:
             # random.randint(0, 4) -> x \in [0,4]
             action = random.randint(0, len(policy[0]) - 1)
         else:
