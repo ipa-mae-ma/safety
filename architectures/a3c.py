@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.0.2
+@version: 3.0.0
 
 #############################################################################################
 
 History:
+- v3.0.0: use only one model for policy and value
 - v2.0.2: update discounted rewards
 - v2.0.1: add dropout layer
 - v2.0.0: support complex conv net
@@ -87,9 +88,10 @@ class A3CGlobal(Agent):
         self.csv_logger = keras.callbacks.CSVLogger(
             'training_log_A3C.csv', append=True)
 
-        # build neural nets
-        self.actor, self.critic = self._build_network()
-        self.optimizer = [self._actor_optimizer(), self._critic_optimizer()]
+        # build neural net
+        self.model = self._build_network()
+        self.single_opt = self._build_optimizer()
+        
         self.save_model_yaml(architecture='A3C')
         
         self.sess = tf.InteractiveSession()
@@ -114,10 +116,7 @@ class A3CGlobal(Agent):
             out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
-            actor = keras.Model(inputs=layer_input, outputs=out_actions)
-            critic = keras.Model(inputs=layer_input, outputs=out_value)
-            actor._make_predict_function()
-            critic._make_predict_function()
+            model._make_predict_function()
             model.summary()
             self.model_yaml = model.to_yaml()
         
@@ -127,7 +126,7 @@ class A3CGlobal(Agent):
                 print(model.to_yaml())
                 print(Font.yellow + '–' * 100 + Font.end)
 
-            return actor, critic
+            return model
         else:
             input_shape = (None,) + self.input_shape + (1,)  # (height, width, channels=1)
             # first hidden layer
@@ -150,87 +149,74 @@ class A3CGlobal(Agent):
 
             model = keras.Model(inputs=[layer_input], outputs=[
                                 out_actions, out_value])
-            actor = keras.Model(inputs=layer_input, outputs=out_actions)
-            critic = keras.Model(inputs=layer_input, outputs=out_value)
-            actor._make_predict_function()
-            critic._make_predict_function()
+            model._make_predict_function()
             model.summary()
             self.model_yaml = model.to_yaml()
-            return actor, critic
+            return model
 
 
-    def _actor_optimizer(self):
+    def _build_optimizer(self):
         """
-        make loss function for policy gradient
-        backpropagation input: 
-            [ log(action_probability) * advantages]
-        with:
-            advantages = discounted_reward - values
+        make loss function for both actor and critic
         """
         K = keras.backend
         action = K.placeholder(shape=(None, self.output_dim))
-        advantages = K.placeholder(shape=(None, ))
-
-        policy = self.actor.output
-
-        log_prob = K.log( K.sum(policy * action, axis=1) + 1e-10)
-        loss_policy = log_prob * K.stop_gradient(advantages)
-        loss = K.sum(loss_policy)
-        
-        beta = self.params['loss_entropy_coefficient']
-        entropy = - beta * K.sum(policy * K.log(policy + 1e-10))
-        
-        loss_actor = K.mean(loss + entropy)
-        loss_actor = tf.clip_by_value(loss_actor, -1000.0, +1000.0)
-
-        optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                            rho=0.9)
-                                            # decay=0.99)
-        # optimizer = keras.optimizers.Adam(lr=self.l_rate)
-        updates = optimizer.get_updates(loss_actor, self.actor.trainable_weights)
-        train = K.function([self.actor.input, action, advantages], [loss_actor], updates=updates)
-        return train
-    
-    def _critic_optimizer(self):
-        """
-        make loss function for value approximation
-        """
-        K = keras.backend
+        # advantages = K.placeholder(shape=(None, ))
         discounted_reward = K.placeholder(shape=(None, ))
 
-        value = self.critic.output
-        # loss_value = K.mean( K.square( discounted_reward - value))
-        loss_value = K.mean( K.square( discounted_reward - value))
+        policy = self.model.output[0]
+        values = self.model.output[1]
 
-        optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
-                                             rho=0.9)
-                                             #, decay=0.99)
-        # optimizer = keras.optimizers.Adam(lr=self.l_rate)
-        updates = optimizer.get_updates(loss_value, self.critic.trainable_weights)
-        train = K.function([self.critic.input, discounted_reward], [loss_value], updates=updates)
+        alpha = self.params['loss_value_coefficient']
+        beta = self.params['loss_entropy_coefficient']
+        # ACTOR loss
+        log_prob = K.log( K.sum(policy * action, axis=1, keepdims=True) + 1e-10)
+        advantages = discounted_reward - values
+        loss_policy = log_prob * K.stop_gradient(advantages)
+        # loss_actor = K.sum(loss_policy, keepdims=True)
+        loss_actor = K.mean(loss_policy)
+        # entropy = beta * K.sum(policy * K.log(policy + 1e-10), keepdims=True)
+        entropy = beta * K.mean(policy * K.log(policy + 1e-10))
+        
+        # CRITIC loss
+        # loss_value = alpha * K.mean(K.square( discounted_reward - values))
+        # loss_value = K.mean(alpha * K.sum(K.square(advantages)))
+        loss_value = alpha * K.mean(K.square(advantages))
+        
+
+        loss_total = - loss_actor + entropy + loss_value
+
+
+        # optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
+        #                                     rho=0.9,
+        #                                     decay=0.99)
+        # updates = optimizer.get_updates(loss_total, self.model.trainable_weights)
+        # train = K.function([self.model.input, action, discounted_reward], 
+        #                     [loss_actor, loss_value], updates=updates)
+        # return train
+
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
+        # Compute the gradients for a list of variables.
+        # minimize = optimizer.minimize(loss_total)
+        minimize_actor = optimizer.minimize(- loss_actor + entropy)
+        minimize_critic = optimizer.minimize(loss_value)
+        grads_and_vars = optimizer.compute_gradients(loss_total)
+  
+        # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
+        # need to the 'gradient' part, for example cap them, etc.
+        capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.5, +0.5), gv[1]) for gv in grads_and_vars]
+        train_op = optimizer.apply_gradients(capped_grads_and_vars)
+        train = K.function([self.model.input, action, discounted_reward], 
+                            [loss_actor, loss_value], updates=[train_op])
+                            # [loss_actor, loss_value], updates=[minimize_actor, minimize_critic])
+                            # [loss_actor, loss_value], updates=[minimize])
         return train
 
-
-    def predict(self, state) -> (np.array, np.array):
-        p = self.actor.predict(state)
-        v = self.critic.predict(state)
-        return p, v
-    
-    def predict_p(self, state) -> np.array:
-        p = self.actor.predict(state)
-        return p
-
-    def predict_v(self, state) -> np.array:
-        v = self.critic.predict(state)
-        return v
-
-
     def train(self):
-        agents = [A3CAgent(index=i, 
+        agents = [A3CAgent(index=i,
                 simple=self.simple_a3c,
-                actor=self.actor, 
-                critic=self.critic, 
-                optimizer=self.optimizer, 
+                model=self.model,
+                optimizer=self.single_opt, 
                 env=self.env, 
                 action_dim=self.output_dim, 
                 state_shape=self.input_shape, 
@@ -309,8 +295,7 @@ class A3CAgent(threading.Thread):
     def __init__(self,
                  index: int,
                  simple: bool,
-                 actor,
-                 critic,
+                 model,
                  optimizer,
                  env,
                  action_dim: int,
@@ -321,8 +306,7 @@ class A3CAgent(threading.Thread):
         
         self.index = index
         self.simple_a3c = simple
-        self.actor = actor
-        self.critic = critic
+        self.model = model
         self.env = env
         self.action_dim = action_dim
         self.state_shape = state_shape
@@ -392,14 +376,9 @@ class A3CAgent(threading.Thread):
                         self.memory(state, action, reward, next_state)
                         state = next_state
                         step_counter += 1
-                        if step_counter == 500000:
+                        if step_counter == 5000000:
                             self.stop_signal = True
-                        if step == self.num_steps - 1:
-                            loss_actor, loss_critic = self.train_episode(done=terminal)
-                            self.set_info(self.index, episode, epoch, rews, 
-                                            step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
-                            break
-                        if terminal:
+                        if terminal or step == self.num_steps - 1:
                             loss_actor, loss_critic = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
                                             step_counter, self.epsilon, q_vals, loss_actor, loss_critic)
@@ -481,9 +460,9 @@ class A3CAgent(threading.Thread):
         running_rew = 0
         if not done:
             if self.simple_a3c:
-                running_rew = self.critic.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))[0]
+                _, running_rew = self.model.predict(np.reshape(self.states[-1], (1, self.state_shape[0])))
             else:
-                running_rew = self.critic.predict(self.states[-1][np.newaxis, ...])[0]
+                _, running_rew = self.model.predict(self.states[-1][np.newaxis, ...])[0]
 
         for t in reversed(range(0, len(rewards))):
             running_rew = rewards[t] + self.gamma * running_rew
@@ -500,25 +479,23 @@ class A3CAgent(threading.Thread):
             loss_actor (float): loss of optimizer
             loss_critic (float): loss of optimizer
         """
-        next_states = [self.next_states[-1] for _ in range(len(self.next_states))]
-
-        # values = self.critic.predict(np.array(self.next_states))
-        # values = self.critic.predict(np.array(next_states))
-        values = self.critic.predict(np.array(self.states))
+        policy, values = self.model.predict(np.array(self.states))
         values = np.reshape(values, len(values))
 
         discounted_rewards = self.discount_rewards(self.rewards, done)
         advantages = discounted_rewards - values
 
-        loss_actor = self.optimizer[ACTOR]([self.states, self.actions, advantages])
-        loss_critic = self.optimizer[CRITIC]([self.states, discounted_rewards])
+        # input: [self.actor.input, action, advantages, discounted_reward]
+        # output: [loss_actor, loss_value]
+        loss_actor, loss_value = self.optimizer([self.states, self.actions, discounted_rewards])
+
         if self.debug:
             print(Font.yellow + '-' * 100 + Font.end)
-            print('loss actor:', loss_actor[0])
-            print('loss critic:', loss_critic[0])
+            print('loss actor:', loss_actor)
+            print('loss critic:', loss_value)
             print(Font.yellow + '-' * 100 + Font.end)
         self.states, self.actions, self.rewards, self.next_states = [], [], [], []
-        return loss_actor[0], loss_critic[0]
+        return loss_actor, loss_value
 
     def act(self, state) -> (int, float):
         """
@@ -533,14 +510,18 @@ class A3CAgent(threading.Thread):
             s = state.reshape((1, self.state_shape[0]))
         else:
             s = state[np.newaxis,:,:,:]
-        policy = self.actor.predict(s)
-        action = misc.eps_greedy(policy[0], self.epsilon, rng=self.rng)
-        # if self.debug:
-        #     print(Font.yellow + 'ACT' + Font.end)
-        #     print('action: ', np.random.choice(
-        #         self.action_dim, size=1, p=policy[0]))
-        # return np.random.choice(self.action_dim, size=1, p=policy[0]), np.max(policy[0])
-        # return np.argmax(policy[0]), np.max(policy[0])
+        policy, value = self.model.predict(s)
+        if self.debug:
+            print(Font.yellow + 'ACT' + Font.end)
+            print('action: ', np.random.choice(
+                self.action_dim, size=1, p=policy[0]))
+        import random
+        if random.random() <= self.epsilon:
+            # random.randint(0, 4) -> x \in [0,4]
+            action = random.randint(0, len(policy[0]) - 1)
+        else:
+            action = np.random.choice(self.action_dim, p=policy[0])
+        # return on-policy action
         return action, np.max(policy[0])
 
 
