@@ -13,6 +13,8 @@
 ### A3C
 [Asynchronous Advantage Actor Critic](http://arxiv.org/abs/1602.01783) (A3C)
 
+![A3C](badges/A3C_game.gif)
+
 ### DQN
 [Deep Q-Networks](https://www.nature.com/articles/nature14236.pdf)
 
