@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.1.1
+@version: 3.2.0
 
 #############################################################################################
 
 History:
+- v3.2.0: update plots
 - v3.1.1: gradient updates
 - v3.1.0: refactor loss
 - v3.0.4: update plot
@@ -149,7 +150,7 @@ class A3CGlobal(Agent):
                                             strides=2, activation='relu', 
                                             padding='same',
                                             kernel_initializer='he_uniform')(l_hidden1)
-            dropout = keras.layers.Dropout(.3)(l_hidden2)
+            dropout = keras.layers.Dropout(.1)(l_hidden2)
             # third hidden layer
             # l_flatten = keras.layers.Flatten()(l_hidden2)
             l_flatten = keras.layers.Flatten()(dropout)
@@ -221,7 +222,7 @@ class A3CGlobal(Agent):
         # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
         # need to the 'gradient' part, for example cap them, etc.
         # TODO: check for lower clipping values
-        grads_and_vars = optimizer.compute_gradients(loss_total, gate_gradients=GATE_GRAPH)
+        grads_and_vars = optimizer.compute_gradients(loss_total, gate_gradients=optimizer.GATE_GRAPH)
         capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.1, +0.1), gv[1]) for gv in grads_and_vars]
         train_op = optimizer.apply_gradients(capped_grads_and_vars)
         train = K.function([self.model.input, action, discounted_reward], 
@@ -247,7 +248,9 @@ class A3CGlobal(Agent):
         losses_actor = []
         losses_critic = []
         entropies = []
-        steps = []
+        steps_to_finish = []
+        steps_total = []
+        loss_total = []
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon']
         time.sleep(5)
@@ -264,11 +267,13 @@ class A3CGlobal(Agent):
                 losses_actor.append(loss_actor)
                 losses_critic.append(loss_critic)
                 entropies.append(entropy)
-                steps.append(step)
+                steps_to_finish.append(step)
+                steps_total.append(step_counter)
+                loss_total.append(loss_actor + loss_critic)
                 print(Font.green + 'steps:' + Font.end)
-                print('steps:', steps[-1])
-            with open('scores.yml', 'w') as f:
-                yaml.dump(scores, f)
+                print('steps:', steps_to_finish[-1])
+            with open('reward.yml', 'w') as f:
+                yaml.dump((scores, step_counter, steps_to_finish), f)
             stop_signals = []
             for agent in agents:
                 stop_signals.append(agent.get_stop())
@@ -279,35 +284,44 @@ class A3CGlobal(Agent):
                 
             fig, (ax1left, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
             # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
-            if len(scores) <= 11:
-                ax1left.plot(range(len(scores)), scores, 'r', label='Scores')
-                ax1right = ax1left.twinx()
-                legend1right, = ax1right.plot(range(len(entropies)), entropies, 'g', label='entropy')
-            else:
-                scores_smooth = misc.smooth(np.array(scores), 11)
-                entropies_smooth = misc.smooth(np.array(entropies), 11)
-                ax1left.plot(range(len(scores_smooth)), scores_smooth, 'r', label='Scores')
-                ax1right = ax1left.twinx()
-                legend1right, = ax1right.plot(range(len(entropies_smooth)), entropies_smooth, 'g', label='Entropy')
-            
-            ax1left.set_xlabel('Episodes')
-            ax1left.set_ylabel('Scores')
-            ax1right.set_ylabel('Entropie')
-            ax1left.grid()
-            ax1left.legend(fontsize=25)
-            ax1right.legend(fontsize=25)
-
-            legend2left, = ax2left.plot(range(len(losses_actor)), losses_actor, 'b', label='loss actor')
-            ax2right = ax2left.twinx()
+            legend1left, = ax1left.plot(range(len(loss_total)), loss_total, 'b', label='loss total')
+            ax1right = ax1left.twinx()
             # legend2right, = ax2right.plot(range(len(steps)), steps, 'r', label='steps')
             # ax2right.set_ylabel('Steps', color='red')
-            legend2right, = ax2right.plot(range(len(losses_critic)), losses_critic, 'r', label='loss critic')
-            ax2left.set_xlabel('Episodes')
-            ax2left.set_ylabel('Loss Actor', color='blue')
-            ax2right.set_ylabel('Loss Critic', color='red')
+            if len(entropies) <= 11:
+                legend1right, = ax1right.plot(entropies, entropies, 'g', label='entropy')
+            else:
+                entropies_smooth = misc.smooth(np.array(entropies))
+                legend1right, = ax1right.plot(range(len(entropies_smooth)), entropies_smooth, 'g', label='entropy')
+            # ax1left.set_xlabel('episodes')
+            ax1left.set_ylabel('loss total', color='blue', fontsize=35)
+            ax1right.set_ylabel('entropy', color='green', fontsize=35)
+            ax1left.grid()
+            plt.legend(handles=[legend1left, legend1right], fontsize=25, loc='center left')
+            ax1left.tick_params(labelsize=15, labelrotation=0)
+
+            if len(scores) <= 11:
+                legend2left, = ax2left.plot(
+                    range(len(scores)), scores, 'r', label='scores')
+                ax2right = ax2left.twinx()
+                legend2right, = ax2right.plot(
+                    range(len(entropies)), entropies, 'g', label='entropy')
+            else:
+                scores_smooth = misc.smooth(np.array(scores), 11)
+                steps_smooth = misc.smooth(np.array(steps_to_finish), 11)
+                legend2left, = ax2left.plot(
+                    range(len(scores_smooth)), scores_smooth, 'r', label='scores')
+                ax2right = ax2left.twinx()
+                legend2right, = ax2right.plot(
+                    range(len(steps_smooth)), steps_smooth, 'b--', label='steps')
+            
+            ax2left.set_xlabel('episodes', fontsize=35)
+            ax2left.set_ylabel('scores', fontsize=35)
+            ax2right.set_ylabel('steps per episode', fontsize=35)
             ax2left.grid()
-            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='upper right')
-            # plt.legend(handles=[legend2left, legend2right, legend2right2], fontsize=25, loc='upper right')
+            ax2left.tick_params(labelsize=15, labelrotation=0)
+
+            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='center left')
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
             plt.close(fig)
@@ -381,7 +395,7 @@ class A3CAgent(threading.Thread):
                 for episode in range(self.num_episodes):
                     obs, _, _, _ = self.env.reset()
                     if self.simple_a3c:
-                        norm = False
+                        norm = True
                         state = self.mc.make_frame(obs, do_overblow=False,
                                                     overblow_factor=self.overblow_factor,
                                                     normalization=norm).reshape(self.state_shape)
@@ -412,8 +426,9 @@ class A3CAgent(threading.Thread):
                         self.memory(state, action, reward, next_state)
                         state = next_state
                         step_counter += 1
-                        if step_counter == 600000:
+                        if step_counter == 100000:
                             self.stop_signal = True
+                            self.env.close()
                         if terminal or step == self.num_steps - 1:
                             loss_actor, loss_critic, entropy = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
