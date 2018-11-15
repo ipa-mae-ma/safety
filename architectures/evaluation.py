@@ -4,11 +4,13 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.4.4
+@version: 1.5.1
 
 #############################################################################################
 
 History:
+- v1.5.1: use architecture name from terminal
+- v1.5.0: only use capital letters for architectures
 - v1.4.4: update Qvalue plot
 - v1.4.3: mode update
 - v1.4.2: change labels and display style
@@ -90,12 +92,13 @@ def smooth(x, window_len=11, window='hanning'):
 
 
 class Evaluation:
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, architecture: str):
         # src_filepath = home/mae-ma/git/safety
         # self.src_filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if mode is None:
             raise ValueError('No mode value given!')
         self.src_filepath = os.getcwd()
+        self.architecture = architecture
         self.plot_filename = None
         self.load_files(filepath=self.src_filepath, mode=mode)
         self.tgt_filepath = os.path.join(os.path.dirname(
@@ -106,22 +109,24 @@ class Evaluation:
     def load_files(self, filepath, mode):
         with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
-        with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_dqn.yml'), 'r') as file:
+        with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_' + self.architecture + '.yml'), 'r') as file:
             self.dqn_config = yaml.load(file)
         self.dqn_config = self.dqn_config[mode]
-        with open(os.path.join(filepath, 'model.yml'), 'r') as file:
+        with open(os.path.join(filepath, 'model_' + self.architecture + '.yml'), 'r') as file:
             self.model = yaml.load(file)
-        csv_path = os.path.join(filepath, 'training_log_DQN.csv')
+        csv_path = os.path.join(
+            filepath, 'training_log_' + self.architecture + '.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
 
     def load_files_update(self, filepath):
         with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
-        with open(os.path.join(filepath, 'config_dqn.yml'), 'r') as file:
+        with open(os.path.join(filepath, 'config_' + self.architecture + '.yml'), 'r') as file:
             self.dqn_config = yaml.load(file)
-        with open(os.path.join(filepath, 'model.yml'), 'r') as file:
+        with open(os.path.join(filepath, 'model_' + self.architecture + '.yml'), 'r') as file:
             self.model = yaml.load(file)
-        csv_path = os.path.join(filepath, 'training_log_DQN.csv')
+        csv_path = os.path.join(
+            filepath, 'training_log_' + self.architecture + '.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
 
     def plot(self, update: bool = False, show: bool = True):
@@ -131,8 +136,7 @@ class Evaluation:
         legends = []
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
-        ax1.plot([_ for _ in range(len(smoothed))],
-                 smoothed, 'b', label='loss')
+        ax1.plot([_ for _ in range(len(smoothed))], smoothed, 'b', label='loss')
         ax1.set_ylabel('loss', fontsize=35)
 
         if len(self.reward) <= 11:
@@ -167,7 +171,9 @@ class Evaluation:
         plt.legend(handles=legends, fontsize=25, loc='center right')
 
         fig.tight_layout()
-        if self.model['config'][0]['class_name'] == 'Conv2D':
+        if self.architecture == 'DQN' and self.model['config'][0]['class_name'] == 'Conv2D':
+            model = '-Conv2D'
+        elif self.architecture == 'A3C' and self.model['config']['layers'][1]['class_name'] == 'Conv2D':
             model = '-Conv2D'
         else:
             model = '-u' + str(self.model['config'][0]['config']['units'])
@@ -188,7 +194,8 @@ class Evaluation:
         print('–'*50)
 
     def plot_q_vals(self):
-        csv_path = os.path.join(os.getcwd(), 'q_val_DQN.csv')
+        csv_path = os.path.join(
+            os.getcwd(), 'q_val_' + self.architecture + '.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
         smoothed = smooth(self.csv[:], 1051)
         fig, ax1 = plt.subplots(1, 1, figsize=(12, 12))
@@ -211,10 +218,11 @@ class Evaluation:
         self.plot(show=False)
         print('–'*50)
         filelist = ['weights.h5', 'target_weights.h5',
-                    'reward.yml', 'replay_buffer.pkl', 'training_log_DQN.csv',
-                    self.plot_filename, 'architectures/config_dqn.yml', 'model.yml']
+                    'reward.yml', 'replay_buffer.pkl', 'training_log_' + self.architecture + '.csv',
+                    self.plot_filename, 'architectures/config_' + self.architecture + '.yml', 
+                    'model_' + self.architecture + '.yml']
         folder = datetime.datetime.today().strftime(
-            '%Y_%m_%d-%H_%M') + '___' + self.plot_filename.replace('.pdf', '')
+            '%Y_%m_%d-%H_%M') + '___' + self.plot_filename.replace('.pdf', '' + '_' + self.architecture)
         folderpath = os.path.join(self.tgt_filepath, folder)
         print('>>> Save all files to: ' + folderpath)
         if not os.path.exists(folderpath):
@@ -229,8 +237,9 @@ class Evaluation:
 @click.option('--save/--no-save', '-s/-ns', default=False, help='backups the files')
 @click.option('--qvalue/--no-qvalue', '-q/-nq', default=False, help='show Q-value plot')
 @click.option('--mode', '-m', help='mode of fruit game')
-def main(plot, save, mode, qvalue):
-    ev = Evaluation(mode=mode)
+@click.option('--architecture', '-a', help='architecture used')
+def main(plot, save, mode, qvalue, architecture):
+    ev = Evaluation(mode=mode, architecture=architecture)
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot(show=True)
