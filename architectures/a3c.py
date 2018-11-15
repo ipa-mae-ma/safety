@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.2.0
+@version: 3.2.1
 
 #############################################################################################
 
 History:
+- v3.2.1: update plots (again)
 - v3.2.0: update plots
 - v3.1.1: gradient updates
 - v3.1.0: refactor loss
@@ -253,7 +254,6 @@ class A3CGlobal(Agent):
         loss_total = []
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon']
-        time.sleep(5)
         while True:
             time.sleep(0.1)
             t = Texttable()
@@ -273,7 +273,14 @@ class A3CGlobal(Agent):
                 print(Font.green + 'steps:' + Font.end)
                 print('steps:', steps_to_finish[-1])
             with open('reward.yml', 'w') as f:
-                yaml.dump((scores, step_counter, steps_to_finish), f)
+                dump_list = []
+                for i in range(len(scores)):
+                    dump_list.append((scores[i], steps_total[i], steps_to_finish[i]))
+                yaml.dump(dump_list, f)
+            
+            dump_array = np.array([steps_total, [0. for _ in range(len(loss_total))], loss_total]).transpose()
+            np.savetxt('training_log_A3C.csv', dump_array, delimiter=',')
+
             stop_signals = []
             for agent in agents:
                 stop_signals.append(agent.get_stop())
@@ -284,15 +291,17 @@ class A3CGlobal(Agent):
                 
             fig, (ax1left, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
             # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
-            legend1left, = ax1left.plot(range(len(loss_total)), loss_total, 'b', label='loss total')
+            # legend1left, = ax1left.plot(range(len(loss_total)), loss_total, 'b', label='loss total')
+            legend1left, = ax1left.plot(steps_total, loss_total, 'b', label='loss total')
             ax1right = ax1left.twinx()
             # legend2right, = ax2right.plot(range(len(steps)), steps, 'r', label='steps')
             # ax2right.set_ylabel('Steps', color='red')
             if len(entropies) <= 11:
                 legend1right, = ax1right.plot(entropies, entropies, 'g', label='entropy')
             else:
-                entropies_smooth = misc.smooth(np.array(entropies))
-                legend1right, = ax1right.plot(range(len(entropies_smooth)), entropies_smooth, 'g', label='entropy')
+                entropies_smooth = misc.smooth(np.array(entropies), 11)
+                # legend1right, = ax1right.plot(range(len(entropies_smooth)), entropies_smooth, 'g', label='entropy')
+                legend1right, = ax1right.plot(steps_total, entropies_smooth[:-10], 'g', label='entropy')
             # ax1left.set_xlabel('episodes')
             ax1left.set_ylabel('loss total', color='blue', fontsize=35)
             ax1right.set_ylabel('entropy', color='green', fontsize=35)
@@ -301,19 +310,19 @@ class A3CGlobal(Agent):
             ax1left.tick_params(labelsize=15, labelrotation=0)
 
             if len(scores) <= 11:
-                legend2left, = ax2left.plot(
-                    range(len(scores)), scores, 'r', label='scores')
+                # legend2left, = ax2left.plot(range(len(scores)), scores, 'r', label='scores')
+                legend2left, = ax2left.plot(steps_total, scores, 'r', label='scores')
                 ax2right = ax2left.twinx()
-                legend2right, = ax2right.plot(
-                    range(len(entropies)), entropies, 'g', label='entropy')
+                # legend2right, = ax2right.plot(range(len(entropies)), entropies, 'g', label='entropy')
+                legend2right, = ax2right.plot(steps_total, entropies, 'g', label='entropy')
             else:
                 scores_smooth = misc.smooth(np.array(scores), 11)
                 steps_smooth = misc.smooth(np.array(steps_to_finish), 11)
-                legend2left, = ax2left.plot(
-                    range(len(scores_smooth)), scores_smooth, 'r', label='scores')
+                # legend2left, = ax2left.plot(range(len(scores_smooth)), scores_smooth, 'r', label='scores')
+                legend2left, = ax2left.plot(steps_total, scores_smooth[:-10], 'r', label='scores')
                 ax2right = ax2left.twinx()
-                legend2right, = ax2right.plot(
-                    range(len(steps_smooth)), steps_smooth, 'b--', label='steps')
+                # legend2right, = ax2right.plot(range(len(steps_smooth)), steps_smooth, 'b--', label='steps')
+                legend2right, = ax2right.plot(steps_total, steps_smooth[:-10], 'b--', label='steps')
             
             ax2left.set_xlabel('episodes', fontsize=35)
             ax2left.set_ylabel('scores', fontsize=35)
