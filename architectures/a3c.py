@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.1.0
+@version: 3.1.1
 
 #############################################################################################
 
 History:
+- v3.1.1: gradient updates
 - v3.1.0: refactor loss
 - v3.0.4: update plot
 - v3.0.3: dict for info
@@ -152,13 +153,9 @@ class A3CGlobal(Agent):
             # third hidden layer
             # l_flatten = keras.layers.Flatten()(l_hidden2)
             l_flatten = keras.layers.Flatten()(dropout)
-            l_full1 = keras.layers.Dense(1500, activation='softmax', kernel_initializer='he_uniform')(l_flatten)
-            l_full2 = keras.layers.Dense(600, activation='softmax', kernel_initializer='he_uniform')(l_full1)
-            l_full3 = keras.layers.Dense(256, activation='softmax', kernel_initializer='he_uniform')(l_full2)
-            # out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
-            # out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full1)
-            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full3)
-            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full3)
+            l_full = keras.layers.Dense(256, activation='softmax', kernel_initializer='he_uniform')(l_flatten)
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             model._make_predict_function()
@@ -215,13 +212,16 @@ class A3CGlobal(Agent):
 
         optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
         # Compute the gradients for a list of variables.
-        minimize = optimizer.minimize(loss_total)
+        # minimize = optimizer.minimize(loss_total)
         
-        grads_and_vars = optimizer.compute_gradients(loss_total)
+        # gradients = optimizer.compute_gradients(loss_total)
+        # capped_gradients = tf.clip_by_global_norm(gradients, 40.0)
+        # train_op = optimizer.apply_gradients(zip(capped_gradients, self.model.trainable_weights))
 
         # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
         # need to the 'gradient' part, for example cap them, etc.
         # TODO: check for lower clipping values
+        grads_and_vars = optimizer.compute_gradients(loss_total, gate_gradients=GATE_GRAPH)
         capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.1, +0.1), gv[1]) for gv in grads_and_vars]
         train_op = optimizer.apply_gradients(capped_grads_and_vars)
         train = K.function([self.model.input, action, discounted_reward], 
