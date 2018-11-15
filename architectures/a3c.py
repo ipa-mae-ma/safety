@@ -5,11 +5,14 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.0.2
+@version: 3.1.0
 
 #############################################################################################
 
 History:
+- v3.1.0: refactor loss
+- v3.0.4: update plot
+- v3.0.3: dict for info
 - v3.0.2: output entropy
 - v3.0.1: add random number in [0.01, 0.3] to epsilon
 - v3.0.0: use only one model for policy and value
@@ -31,6 +34,7 @@ import tensorflow as tf
 from tensorflow import keras
 import threading
 import time
+import random
 from matplotlib import pyplot as plt
 from texttable import Texttable
 
@@ -100,12 +104,12 @@ class A3CGlobal(Agent):
         keras.backend.set_session(self.sess)
         self.sess.run(tf.global_variables_initializer())
 
-    def _build_network(self) -> (keras.models.Sequential, keras.models.Sequential):
+
+    def _build_network(self) -> keras.models.Sequential:
         """
         build network with A3C parameters
         Output:
-            actor (keras.model): actor model
-            critic (keras.model): critic model
+            model (keras.model): actor / critic model
         """
         
         if self.simple_a3c:
@@ -114,7 +118,7 @@ class A3CGlobal(Agent):
             layer_input = keras.Input(batch_shape=input_shape, name='input')
             l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
 
-            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', name='out_a')(l_dense)
+            out_actions = keras.layers.Dense(self.output_dim, kernel_initializer='he_uniform', activation='softmax', name='out_a')(l_dense)
             out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
@@ -136,18 +140,25 @@ class A3CGlobal(Agent):
             layer_input = keras.Input(batch_shape=(None, 80, 80, 1))
             l_hidden1 = keras.layers.Conv2D(filters=16, kernel_size=(8, 8),
                                             strides=4, activation='relu',
-                                            kernel_initializer='he_uniform', data_format='channels_last')(layer_input)
+                                            kernel_initializer='he_uniform', 
+                                            padding='same',
+                                            data_format='channels_last')(layer_input)
             # second hidden layer
             l_hidden2 = keras.layers.Conv2D(filters=32, kernel_size=(4, 4),
-                                            strides=2, activation='relu', kernel_initializer='he_uniform')(l_hidden1)
+                                            strides=2, activation='relu', 
+                                            padding='same',
+                                            kernel_initializer='he_uniform')(l_hidden1)
             dropout = keras.layers.Dropout(.3)(l_hidden2)
             # third hidden layer
             # l_flatten = keras.layers.Flatten()(l_hidden2)
             l_flatten = keras.layers.Flatten()(dropout)
-            l_full1 = keras.layers.Dense(
-                256, activation='relu', kernel_initializer='he_uniform')(l_flatten)
-            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
-            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full1)
+            l_full1 = keras.layers.Dense(1500, activation='softmax', kernel_initializer='he_uniform')(l_flatten)
+            l_full2 = keras.layers.Dense(600, activation='softmax', kernel_initializer='he_uniform')(l_full1)
+            l_full3 = keras.layers.Dense(256, activation='softmax', kernel_initializer='he_uniform')(l_full2)
+            # out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full1)
+            # out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full1)
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full3)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full3)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             model._make_predict_function()
@@ -162,7 +173,6 @@ class A3CGlobal(Agent):
         """
         K = keras.backend
         action = K.placeholder(shape=(None, self.output_dim))
-        # advantages = K.placeholder(shape=(None, ))
         discounted_reward = K.placeholder(shape=(None, ))
 
         policy = self.model.output[0]
@@ -170,30 +180,37 @@ class A3CGlobal(Agent):
 
         alpha = self.params['loss_value_coefficient']
         beta = self.params['loss_entropy_coefficient']
+
+        ################
         # ACTOR loss
+        ################
         log_prob = K.log( K.sum(policy * action, axis=1, keepdims=True) + 1e-10)
         advantages = discounted_reward - values
         loss_policy = log_prob * K.stop_gradient(advantages)
-        # loss_actor = K.sum(loss_policy, keepdims=True)
         loss_actor = K.mean(loss_policy)
-        # entropy = beta * K.sum(policy * K.log(policy + 1e-10), keepdims=True)
-        entropy = beta * K.mean(policy * K.log(policy + 1e-10))
-        
-        # CRITIC loss
-        # loss_value = alpha * K.mean(K.square( discounted_reward - values))
-        # loss_value = K.mean(alpha * K.sum(K.square(advantages)))
-        loss_value = alpha * K.mean(K.square(advantages))
-        
 
-        loss_total = loss_actor - entropy + loss_value
+        ################
+        # ENTROPIE
+        ################
+        entropy = - beta * K.sum(policy * K.log(policy + 1e-10))
+
+        ################
+        # CRITIC loss
+        ################
+        loss_value = alpha * K.mean(K.square(advantages))
+
+        ################
+        # LOSS total
+        ################
+        loss_total = loss_actor + entropy + loss_value
 
 
         # optimizer = keras.optimizers.RMSprop(lr=self.l_rate,
         #                                     rho=0.9,
         #                                     decay=0.99)
         # updates = optimizer.get_updates(loss_total, self.model.trainable_weights)
-        # train = K.function([self.model.input, action, discounted_reward], 
-        #                     [loss_actor, loss_value], updates=updates)
+        # train = K.function([self.model.input, action, discounted_reward],
+        #                         [loss_actor, loss_value, entropy], updates = updates)
         # return train
 
         optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
@@ -201,16 +218,15 @@ class A3CGlobal(Agent):
         minimize = optimizer.minimize(loss_total)
         
         grads_and_vars = optimizer.compute_gradients(loss_total)
-  
+
         # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
         # need to the 'gradient' part, for example cap them, etc.
         # TODO: check for lower clipping values
-        capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.5, +0.5), gv[1]) for gv in grads_and_vars]
+        capped_grads_and_vars = [(tf.clip_by_value(gv[0], -0.1, +0.1), gv[1]) for gv in grads_and_vars]
         train_op = optimizer.apply_gradients(capped_grads_and_vars)
         train = K.function([self.model.input, action, discounted_reward], 
-                            [loss_actor, loss_value, entropy], updates=[train_op])
-                            # [loss_actor, loss_value], updates=[minimize_actor, minimize_critic])
-                            # [loss_actor, loss_value], updates=[minimize])
+                             [loss_actor, loss_value, entropy], updates=[train_op])
+                             # [loss_actor, loss_value, entropy], updates=[minimize])
         return train
 
     def train(self):
@@ -231,13 +247,16 @@ class A3CGlobal(Agent):
         losses_actor = []
         losses_critic = []
         entropies = []
+        steps = []
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon']
+        time.sleep(5)
         while True:
             time.sleep(0.1)
             t = Texttable()
             for agent in agents:
-                index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic, entropy = agent.get_info()
+                index, episode, epoch, rew, step_counter, \
+                    epsilon, q_vals, loss_actor, loss_critic, entropy, step = agent.get_info()
                 t.add_rows([names, [index, episode, epoch, rew, step_counter, epsilon]])
                 print(t.draw() + '\n\n')
                 scores.append(rew)
@@ -245,6 +264,9 @@ class A3CGlobal(Agent):
                 losses_actor.append(loss_actor)
                 losses_critic.append(loss_critic)
                 entropies.append(entropy)
+                steps.append(step)
+                print(Font.green + 'steps:' + Font.end)
+                print('steps:', steps[-1])
             with open('scores.yml', 'w') as f:
                 yaml.dump(scores, f)
             stop_signals = []
@@ -255,27 +277,37 @@ class A3CGlobal(Agent):
                     agent.join()
                 break
                 
-            fig, (ax1, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
+            fig, (ax1left, ax2left) = plt.subplots(2, 1, figsize=(18, 12))
             # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
             if len(scores) <= 11:
-                ax1.plot(range(len(scores)), scores, 'r', label='Scores')
+                ax1left.plot(range(len(scores)), scores, 'r', label='Scores')
+                ax1right = ax1left.twinx()
+                legend1right, = ax1right.plot(range(len(entropies)), entropies, 'g', label='entropy')
             else:
-                plot = misc.smooth(np.array(scores), 11)
-                ax1.plot(range(len(plot)), plot, 'r', label='Scores')
-            ax1.set_xlabel('Episodes')
-            ax1.set_ylabel('Scores')
-            ax1.grid()
-            ax1.legend(fontsize=25)
+                scores_smooth = misc.smooth(np.array(scores), 11)
+                entropies_smooth = misc.smooth(np.array(entropies), 11)
+                ax1left.plot(range(len(scores_smooth)), scores_smooth, 'r', label='Scores')
+                ax1right = ax1left.twinx()
+                legend1right, = ax1right.plot(range(len(entropies_smooth)), entropies_smooth, 'g', label='Entropy')
+            
+            ax1left.set_xlabel('Episodes')
+            ax1left.set_ylabel('Scores')
+            ax1right.set_ylabel('Entropie')
+            ax1left.grid()
+            ax1left.legend(fontsize=25)
+            ax1right.legend(fontsize=25)
 
             legend2left, = ax2left.plot(range(len(losses_actor)), losses_actor, 'b', label='loss actor')
             ax2right = ax2left.twinx()
+            # legend2right, = ax2right.plot(range(len(steps)), steps, 'r', label='steps')
+            # ax2right.set_ylabel('Steps', color='red')
             legend2right, = ax2right.plot(range(len(losses_critic)), losses_critic, 'r', label='loss critic')
-            legend2right2, = ax2right.plot(range(len(entropies)), entropies, 'g', label='entropy')
             ax2left.set_xlabel('Episodes')
             ax2left.set_ylabel('Loss Actor', color='blue')
             ax2right.set_ylabel('Loss Critic', color='red')
             ax2left.grid()
-            plt.legend(handles=[legend2left, legend2right, legend2right2], fontsize=25, loc='upper right')
+            plt.legend(handles=[legend2left, legend2right], fontsize=25, loc='upper right')
+            # plt.legend(handles=[legend2left, legend2right, legend2right2], fontsize=25, loc='upper right')
             fig.tight_layout()
             plt.savefig('./a3c.pdf')
             plt.close(fig)
@@ -336,9 +368,8 @@ class A3CAgent(threading.Thread):
 
         names = ['Index', 'Episode', 'Epoch',
                  'Reward', 'Step Counter', 'Epsilon', 
-                 'Q Vals', 'Loss Actor', 'Loss Critic', 'Entropy']
-        name_tuple = tuple([_ for _ in range(len(names))])
-        self.info = [name_tuple]
+                 'Q Vals', 'Loss Actor', 'Loss Critic', 'Entropy', 'Steps']
+        self.info = {name: 0 for name in names}
         self.stop_signal = False
 
 
@@ -350,7 +381,7 @@ class A3CAgent(threading.Thread):
                 for episode in range(self.num_episodes):
                     obs, _, _, _ = self.env.reset()
                     if self.simple_a3c:
-                        norm = True
+                        norm = False
                         state = self.mc.make_frame(obs, do_overblow=False,
                                                     overblow_factor=self.overblow_factor,
                                                     normalization=norm).reshape(self.state_shape)
@@ -362,12 +393,13 @@ class A3CAgent(threading.Thread):
                         
                     rews = 0
                     for step in range(self.num_steps):
-                        # time.sleep(0.1)
+                        time.sleep(0.001)
                         action, q_vals = self.act(state)
                         obs, reward, terminal, info = self.env.step(action)
                         self.calc_eps_decay(step_counter=step_counter)
                         rews += reward
-                        self.env.render()
+                        if self.index == 0:
+                            self.env.render()
                         if self.simple_a3c:
                             next_state = self.mc.make_frame(obs, do_overblow=False,
                                                          overblow_factor=self.overblow_factor,
@@ -380,13 +412,13 @@ class A3CAgent(threading.Thread):
                         self.memory(state, action, reward, next_state)
                         state = next_state
                         step_counter += 1
-                        if step_counter == self.num_epochs * self.num_episodes * self.num_steps - 10:
+                        if step_counter == 600000:
                             self.stop_signal = True
                         if terminal or step == self.num_steps - 1:
                             loss_actor, loss_critic, entropy = self.train_episode(done=terminal)
                             self.set_info(self.index, episode, epoch, rews, 
                                             step_counter, self.epsilon, q_vals, 
-                                            loss_actor, loss_critic, entropy)
+                                            loss_actor, loss_critic, entropy, step)
                             break
 
     def stop(self) -> None:
@@ -404,25 +436,38 @@ class A3CAgent(threading.Thread):
         Output:
             (index:int, episode:int, epoch:int, rew:float, 
             step_counter:int, epsilon:float, q_vals:float
-            loss_actor:float, loss_critic:float)
+            loss_actor:float, loss_critic:float, entropy:float, num_steps:int)
         """
-        index = self.info[-1][0]
-        episode = self.info[-1][1]
-        epoch = self.info[-1][2]
-        rew = self.info[-1][3]
-        step_counter = self.info[-1][4]
-        epsilon = self.info[-1][5]
-        q_vals = self.info[-1][6]
-        loss_actor = self.info[-1][7]
-        loss_critic = self.info[-1][8]
-        entropy = self.info[-1][9]
-        return index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic, entropy
+        index = self.info['Index'] 
+        episode = self.info['Episode'] 
+        epoch = self.info['Epoch']
+        rew = self.info['Reward']
+        step_counter = self.info['Step Counter']
+        epsilon = self.info['Epsilon']
+        q_vals = self.info['Q Vals']
+        loss_actor = self.info['Loss Actor']
+        loss_critic = self.info['Loss Critic']
+        entropy = self.info['Entropy']
+        num_steps = self.info['Steps']
+        return index, episode, epoch, rew, step_counter, epsilon, q_vals, loss_actor, loss_critic, entropy, num_steps
 
     def set_info(self, index, episode, epoch, rew, 
                 step_counter, epsilon, q_vals, 
-                loss_actor, loss_critic, entropy) -> None:
-        self.info.append((index, episode, epoch, rew, step_counter,
-                          epsilon, q_vals, loss_actor, loss_critic, entropy))
+                loss_actor, loss_critic, entropy, num_steps) -> None:
+        # ['Index', 'Episode', 'Epoch',
+        #  'Reward', 'StepCounter', 'Epsilon',
+        #  'QVals', 'LossActor', 'LossCritic', 'Entropy', 'Steps']
+        self.info['Index']  = index
+        self.info['Episode']  = episode
+        self.info['Epoch'] = epoch
+        self.info['Reward'] = rew
+        self.info['Step Counter'] = step_counter
+        self.info['Epsilon'] = epsilon
+        self.info['Q Vals'] = q_vals
+        self.info['Loss Actor'] = loss_actor
+        self.info['Loss Critic'] = loss_critic
+        self.info['Entropy'] = entropy
+        self.info['Steps'] = num_steps
 
 
     def calc_eps_decay(self, step_counter: int) -> None:
@@ -472,7 +517,8 @@ class A3CAgent(threading.Thread):
             else:
                 _, running_rew = self.model.predict(self.states[-1][np.newaxis, ...])
 
-        for t in reversed(range(0, len(rewards))):
+        discounted_rewards[-1] = running_rew
+        for t in reversed(range(0, len(rewards) - 1)):
             running_rew = rewards[t] + self.gamma * running_rew
             discounted_rewards[t] = running_rew
         return discounted_rewards
@@ -486,12 +532,23 @@ class A3CAgent(threading.Thread):
         Outputs:
             loss_actor (float): loss of optimizer
             loss_critic (float): loss of optimizer
+            entropy (float): entropy of policy
         """
+        ######################################################################
         policy, values = self.model.predict(np.array(self.states))
+        policy, values_next = self.model.predict(np.array(self.next_states))
         values = np.reshape(values, len(values))
-
+        values_next = np.reshape(values_next, len(values_next))
         discounted_rewards = self.discount_rewards(self.rewards, done)
-        advantages = discounted_rewards - values
+        ######################################################################
+        
+        if self.debug:
+            print(Font.green + '-'*100 + Font.end)
+            print(Font.green + 'Convergence of V-Values test' + Font.end)
+            print('mean of V_model:', np.mean(values))
+            print(Font.green + '-'*100 + Font.end)
+            print('mean of discounted rewards:', np.mean(discounted_rewards))
+            print(Font.green + '-'*100 + Font.end)
 
         # input: [self.actor.input, action, advantages, discounted_reward]
         # output: [loss_actor, loss_value, entropy]
@@ -499,6 +556,8 @@ class A3CAgent(threading.Thread):
 
         if self.debug:
             print(Font.yellow + '-' * 100 + Font.end)
+            print(Font.yellow + 'Losses' + Font.end)
+            print('entropy:', entropy)
             print('loss actor:', loss_actor)
             print('loss critic:', loss_value)
             print(Font.yellow + '-' * 100 + Font.end)
@@ -518,19 +577,21 @@ class A3CAgent(threading.Thread):
             s = state.reshape((1, self.state_shape[0]))
         else:
             s = state[np.newaxis,:,:,:]
+
         policy, value = self.model.predict(s)
+        
         if self.debug:
             print(Font.yellow + 'ACT' + Font.end)
-            print('action: ', np.random.choice(
-                self.action_dim, size=1, p=policy[0]))
-        import random
+            print('action: ', np.random.choice(self.action_dim, size=1, p=policy[0]))
+
         # clip epsilon to 1.0
         eps = min(self.epsilon, 1.0)
-        if random.random() <= eps:
-            # random.randint(0, 4) -> x \in [0,4]
-            action = random.randint(0, len(policy[0]) - 1)
-        else:
-            action = np.random.choice(self.action_dim, p=policy[0])
+        # if random.random() <= eps:
+        #     # random.randint(0, 4) -> x \in [0,4]
+        #     action = random.randint(0, len(policy[0]) - 1)
+        # else:
+        #     action = np.random.choice(self.action_dim, p=policy[0])
+        action = np.random.choice(self.action_dim, p=policy[0])
         # return on-policy action
         return action, np.max(policy[0])
 
