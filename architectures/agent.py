@@ -5,11 +5,12 @@ Created on October 26, 2018
 @author: mae-ma
 @attention: basic functionality for RL agents
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.0.0
+@version: 1.0.1
 
 #############################################################################################
 
 History:
+- v1.0.1: update output path
 - v1.0.0: first init
 """
 
@@ -22,6 +23,7 @@ class Agent:
         self.params = parameters
         self.architecture_path = os.path.dirname(os.path.realpath(__file__))
         self.safety_path = os.path.dirname(self.architecture_path)
+        self.output_path = os.path.join(self.safety_path, 'output')
         self.replay_buffer = ReplayBuffer(
             float(self.params['replay_memory_size']))
 
@@ -40,7 +42,7 @@ class Agent:
         print(Font.yellow + '–' * 100 + Font.end)
         model_name = 'model_' + architecture + '.yml'
         print('Save model as "{}"'.format(model_name))
-        with open(model_name, 'w') as file:
+        with open(os.path.join('output', model_name), 'w') as file:
             file.write(self.model_yaml)
         print(Font.yellow + '–' * 100 + Font.end)
 
@@ -50,12 +52,11 @@ class Agent:
         delete training log file in the beginning
         """
         log_name = 'training_log_' + architecture + '.csv'
-        if os.path.exists(os.path.join(self.safety_path, log_name)):
+        if os.path.exists(os.path.join(self.output_path, log_name)):
             print(Font.yellow + '–' * 100 + Font.end)
             print('delete old training log')
             print(Font.yellow + '–' * 100 + Font.end)
-            os.remove(os.path.join(
-                self.safety_path, log_name))
+            os.remove(os.path.join(self.output_path, log_name))
 
 
     def print_params(self, architecture_name: str) -> None:

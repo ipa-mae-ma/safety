@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.2.1
+@version: 3.2.2
 
 #############################################################################################
 
 History:
+- v3.2.2: update output path
 - v3.2.1: update plots (again)
 - v3.2.0: update plots
 - v3.1.1: gradient updates
@@ -272,7 +273,7 @@ class A3CGlobal(Agent):
                 loss_total.append(loss_actor + loss_critic)
                 print(Font.green + 'steps:' + Font.end)
                 print('steps:', steps_to_finish[-1])
-            with open('reward.yml', 'w') as f:
+            with open(os.path.join('output', 'reward.yml'), 'w') as f:
                 dump_list = []
                 for i in range(len(scores)):
                     dump_list.append((scores[i], steps_total[i], steps_to_finish[i]))
