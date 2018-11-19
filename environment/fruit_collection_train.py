@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.4.1
+@version: 2.4.2
 
 #############################################################################################
 
 History:
+- v2.4.2: rename config yml file to capital letters
 - v2.4.1: rename of AsynchronousAdvantageActorCritic to a3c
 - v2.4.0: use new environment step output
 - v2.3.2: delete framerate slowdown
@@ -74,7 +75,7 @@ class FruitCollectionTrain(FruitCollection):
         print('Simple:\t\t', simple)
         print('Mode:\t\t', mode)
 
-        self.params = self.load_params(filename='config_a3c.yml')
+        self.params = self.load_params(filename='config_A3C.yml')
         if mode == 'mini':
             params = self.params[mode]
             game_length = params['num_steps']
