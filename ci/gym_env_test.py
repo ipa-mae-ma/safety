@@ -5,13 +5,14 @@ Created on October 4, 2018
 @author: mae-ma
 @attention: tests for continuous integration
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.3
+@version: 1.3.4
 
 #############################################################################################
 
 This class tests the different Q-learning functions with the help of the gym environment
 
 History:
+- v1.3.4: add class MDP
 - v1.3.3: update for 'eps_greedy' function test
 - v1.3.2: use random seed generator for testing
 - v1.3.1: print explanation if program is executed
@@ -28,7 +29,6 @@ import sys
 import os
 sys.path.extend([os.path.split(sys.path[0])[0]])
 from architectures import misc as mc
-from architectures.mdp import MDP
 ###############################
 
 import numpy as np
@@ -42,6 +42,16 @@ env = CrawlingRobotEnv()
 GAMMA = 0.9
 ALPHA = 0.1
 EPS = 0.5
+
+
+class MDP(object):
+    def __init__(self, P, nS, nA, desc=None):
+        # mdp.P[state][action] is a list of tuples (probability, nextstate, reward)
+        self.P = P  # state transition and reward probabilities
+        self.nS = nS  # number of states
+        self.nA = nA  # number of actions
+        # 2D array specifying what each grid cell means (used for plotting)
+        self.desc = desc
 
 
 class TestGymEnv:
