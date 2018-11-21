@@ -112,7 +112,7 @@ class FruitCollectionTrain(FruitCollection):
             self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
                                     warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
                                     simple_dqn=self.simple, params=params)
-        elif architecture.lower() = 'a3c':
+        elif architecture.lower() == 'a3c':
             self.a3c = A3CGlobal(input_shape=self.input_shape,
                                 output_dim=self.env.nb_actions,
                                 warmstart=False,
@@ -120,9 +120,10 @@ class FruitCollectionTrain(FruitCollection):
                                 simple_a3c=self.simple,
                                 params=params,
                                 env=self.env)
-        elif architecture.lower() = 'hra':
+        elif architecture.lower() == 'hra':
             self.hra = HybridRewardArchitecture(input_shape=self.input_shape,
-                                                output_dim=self.output_dim)
+                                                output_dim=self.env.nb_actions,
+                                                params=params)
         else:
             raise ValueError('Incorrect architecture.')
 
@@ -278,9 +279,9 @@ def run(warmstart, simple, render, testing, mode, architecture):
     
     if architecture.lower() == 'dqn':
         fct.main_dqn(verbose=False)
-    elif architecture.lower() = 'a3c':
+    elif architecture.lower() == 'a3c':
         fct.main_a3c()
-    elif architecture.lower() = 'hra':
+    elif architecture.lower() == 'hra':
         fct.main_hra()
     else:
         raise ValueError('Incorrect architecture.')    
