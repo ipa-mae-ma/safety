@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.4.2
+@version: 2.5.0
 
 #############################################################################################
 
 History:
+- v2.5.0: use of hra
+- v2.4.3: use architecture flag
 - v2.4.2: rename config yml file to capital letters
 - v2.4.1: rename of AsynchronousAdvantageActorCritic to a3c
 - v2.4.0: use new environment step output
@@ -51,7 +53,7 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 # architectures
 ############################
 from architectures.a3c import A3CGlobal
-# from architectures.hra import HybridRewardArchitecture
+from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
 ############################
@@ -69,7 +71,9 @@ np.set_printoptions(threshold=np.nan)
 
 
 class FruitCollectionTrain(FruitCollection):
-    def __init__(self, warmstart=False, simple=True, render=False, testing=False, mode='mini'):
+    def __init__(self, warmstart=False, simple=True, 
+                render=False, testing=False, mode='mini',
+                architecture=None):
         print('–'*100)
         print('Warmstart:\t', warmstart)
         print('Simple:\t\t', simple)
@@ -102,17 +106,25 @@ class FruitCollectionTrain(FruitCollection):
             self.input_shape = (self.input_shape[0] * self.overblow_factor,
                             self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
-        # self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
-        #                         warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
-        #                         simple_dqn=self.simple, params=params)
-
-        self.a3c = A3CGlobal(input_shape=self.input_shape,
+        
+        
+        if architecture.lower() == 'dqn':
+            self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
+                                    warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
+                                    simple_dqn=self.simple, params=params)
+        elif architecture.lower() = 'a3c':
+            self.a3c = A3CGlobal(input_shape=self.input_shape,
                                 output_dim=self.env.nb_actions,
                                 warmstart=False,
                                 warmstart_path=None,
                                 simple_a3c=self.simple,
                                 params=params,
                                 env=self.env)
+        elif architecture.lower() = 'hra':
+            self.hra = HybridRewardArchitecture(input_shape=self.input_shape,
+                                                output_dim=self.output_dim)
+        else:
+            raise ValueError('Incorrect architecture.')
 
     def load_params(self, filename: str):
         """
@@ -248,6 +260,9 @@ class FruitCollectionTrain(FruitCollection):
     def main_a3c(self):
         self.a3c.train()
 
+    def main_hra(self):
+        self.hra.main()
+
 
 @click.command()
 @click.option('--warmstart/--no-warmstart', '-w/-nw', default=False, help='load the network weights')
@@ -255,10 +270,20 @@ class FruitCollectionTrain(FruitCollection):
 @click.option('--render/--no-render', '-r/-nr', default=False, help='render the pygame')
 @click.option('--testing/--no-testing', '-t/-nt', default=False, help='test the network')
 @click.option('--mode', '-m', help='environment, possibilities: "mini", "small"')
-def run(warmstart, simple, render, testing, mode):
-    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, render=render, testing=testing, mode=mode)
-    # fct.main_dqn(verbose=False)
-    fct.main_a3c()
+@click.option('--architecture', '-a', help='architecture used')
+def run(warmstart, simple, render, testing, mode, architecture):
+    fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, 
+                                render=render, testing=testing, 
+                                mode=mode, architecture=architecture)
+    
+    if architecture.lower() == 'dqn':
+        fct.main_dqn(verbose=False)
+    elif architecture.lower() = 'a3c':
+        fct.main_a3c()
+    elif architecture.lower() = 'hra':
+        fct.main_hra()
+    else:
+        raise ValueError('Incorrect architecture.')    
 
 if __name__ == '__main__':
     run()
