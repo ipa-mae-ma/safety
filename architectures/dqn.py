@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.1.0
+@version: 2.1.1
 
 #############################################################################################
 
 History:
+- v2.1.1: update file save paths
 - v2.1.0: update kernel initializer to work with reward <100
 - v2.0.3: delete unused variables
 - v2.0.2: get parameterset as keyword
@@ -76,6 +77,7 @@ class DeepQNetwork:
         """
         architecture_path = os.path.dirname(os.path.realpath(__file__))
         safety_path = os.path.dirname(architecture_path)
+        self.output_path = os.path.join(safety_path, 'output')
         # cfg_file = os.path.join(architecture_path, 'config_dqn.yml')
         # self.params = yaml.safe_load(open(cfg_file, 'r'))
         self.params = params
@@ -103,14 +105,13 @@ class DeepQNetwork:
         self.replay_buffer = ReplayBuffer(float(self.params['replay_memory_size']))
 
         # delete training log file in the beginning
-        if os.path.exists(os.path.join(safety_path, 'training_log_DQN.csv')):
+        if os.path.exists(os.path.join(self.output_path, 'training_log_DQN.csv')):
             print(Font.yellow + '–' * 100 + Font.end)
             print('delete old training log')
             print(Font.yellow + '–' * 100 + Font.end)
-            os.remove(os.path.join(
-                safety_path, 'training_log_DQN.csv'))
+            os.remove(os.path.join(self.output_path, 'training_log_DQN.csv'))
 
-        self.csv_logger = keras.callbacks.CSVLogger('training_log_DQN.csv', append=True)
+        self.csv_logger = keras.callbacks.CSVLogger(os.path.join(self.output_path, 'training_log_DQN.csv'), append=True)
         # max number of epochs
         self.num_epochs = self.params['num_epochs']
         # number of episodes in one epoch
@@ -131,7 +132,7 @@ class DeepQNetwork:
 
         print(Font.yellow + '–' * 100 + Font.end)
         print('Save model as "model.yml"')
-        with open('model.yml', 'w') as file:
+        with open(os.path.join(self.output_path, 'model.yml'), 'w') as file:
             file.write(self.model_yaml)
         print(Font.yellow + '–' * 100 + Font.end)
         # do warmstart
@@ -340,11 +341,14 @@ class DeepQNetwork:
         Input:
             path (str): where to save the buffer
         """
-        self.replay_buffer.dump(file_path=path)
+        filepath = os.path.join(self.output_path, path)
+        self.replay_buffer.dump(file_path=filepath)
 
     def save_weights(self, path: str) -> None:
-        self.model.save_weights(filepath=path)
-        self.target_model.save_weights(filepath='target_' + path)
+        modelpath = os.path.join(self.output_path, path)
+        target_modelpath = os.path.join(self.output_path, 'target_' + path)
+        self.model.save_weights(filepath=modelpath)
+        self.target_model.save_weights(filepath=target_modelpath)
 
     def _replay(self, batch_size: int=32) -> None:
         """
