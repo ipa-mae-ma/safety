@@ -22,22 +22,37 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
 import random
+from copy import deepcopy
+import time
 
+from architectures.replay_buffer import ReplayBuffer
 import architectures.misc as misc
 from architectures.misc import Font
 from architectures.agent import Agent
 
 
 class HybridRewardArchitecture(Agent):
-    def __init__(self, input_shape, output_dim, params):
-        self.input_shape = input_shape
-        print(Font.green + str(len(input_shape)) + Font.end)
-        self.input_dim = input_shape[0] if len(input_shape) == 1 else input_shape[0] * input_shape[1]
-        self.output_dim = output_dim
+    def __init__(self, env, params):
+        self.env = env
+        self.input_shape = self.env.state_shape # [4, 10, 10]
+        self.input_dim = self.env.state_shape[0] * self.env.state_shape[1] * self.env.state_shape[2]
+        self.output_dim = self.env.nb_actions
         self.n_heads = 10
 
-        self.gamma = params['gamma']
-        self.l_rate = params['learning_rate']
+        self.params = params
+        self.gamma = self.params['gamma']
+        self.l_rate = self.params['learning_rate']
+        self.rng = np.random.RandomState(self.params['random_seed'])
+        self.epsilon = self.params['epsilon']
+        self.epsilon_min = self.params['epsilon_min']
+        self.replay_buffer = ReplayBuffer(
+            max_size=self.params['replay_memory_size'])
+        self.minibatch_size = self.params['minibatch_size']
+        self.update_counter = 0
+        self.update_freq = self.params['update_frequency']
+        self.num_epochs = self.params['num_epochs']
+        self.num_episodes = self.params['num_episodes']
+        self.num_steps = self.params['num_steps']
 
         self.models = [self._build_network() for _ in range(self.n_heads)]
         self.model_yaml = self.models[0].to_yaml()
@@ -45,6 +60,7 @@ class HybridRewardArchitecture(Agent):
         self.target_models = [self._build_network() for _ in range(self.n_heads)]
         self.all_model_params = self.flatten([model.trainable_weights for model in self.models])
         self.all_target_model_params = self.flatten([target_model.trainable_weights for target_model in self.target_models])
+        self.weight_transfer(from_model=self.models, to_model=self.target_models)
         self._build_optimizer()
 
     def _build_network(self) -> keras.models.Sequential:
@@ -53,11 +69,11 @@ class HybridRewardArchitecture(Agent):
         Output:
             model (keras.model): model
         """
-        input_shape = (None,) + self.input_shape
+        input_shape = (None,) + tuple(self.input_shape)
         layer_input = keras.Input(batch_shape=input_shape, name='input')
         l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
         out = keras.layers.Dense(self.output_dim, activation='relu', kernel_initializer='he_uniform', name='out')(l_dense)
-        model = keras.Model(input=layer_input, output=out)
+        model = keras.Model(inputs=[layer_input], outputs=[out])
         # model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy'])
         return model
 
@@ -70,9 +86,9 @@ class HybridRewardArchitecture(Agent):
             loss (float): mean squared error
         """
         # produce mask for actions with outputs [0, 0, 1, 0] if a = 2
-        amask = K.tf.one_hot(a, q.get_shape()[1], 1.0, 0.0)
+        amask = tf.one_hot(a, q.get_shape()[1], 1.0, 0.0)
         # predictions have shape (len(actions), 1)
-        predictions = K.tf.reduce_sum(q * amask, axis=1)
+        predictions = tf.reduce_sum(q * amask, axis=1)
 
         targets = r + (1 - t) * self.gamma * K.max(q_, axis=1)
         loss = K.sum((targets - predictions) ** 2)
@@ -80,12 +96,12 @@ class HybridRewardArchitecture(Agent):
 
     def _build_optimizer(self):
         s = self.models[0].input
-        a = K.placeholder(ndim=1)
-        r = K.placeholder(ndim=2)
+        a = K.placeholder(ndim=1, dtype='int32')
+        r = K.placeholder(ndim=2, dtype='float32')
         s_ = self.models[0].input
-        t = K.placeholder(ndim=1)
+        t = K.placeholder(ndim=1, dtype='float32')
 
-        updates = 0.0
+        updates = []
         losses = 0.0
         qs = []
         qs_ = []
@@ -99,7 +115,7 @@ class HybridRewardArchitecture(Agent):
             loss = self._compute_loss(qs[-1], a, r[:, i], t, qs_[-1])
             # rho and epsilon from Maluuba implementation
             optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.95, epsilon=1e-7)
-            updates += optimizer.get_updates(params=self.all_model_params, loss=loss)
+            updates += optimizer.get_updates(params=self.models[i].trainable_weights, loss=loss)
             losses += loss
 
         target_updates = []
@@ -108,9 +124,11 @@ class HybridRewardArchitecture(Agent):
             for model_weight, target_model_weight in zip(model.trainable_weights, target_model.trainable_weights):
                 target_updates.append(K.update(target_model_weight, model_weight))
 
+        # train networks on batch
         self._train_on_batch = K.function(inputs=[s, a, r, s_, t], outputs=[losses], updates=updates)
         # returns all Q-values for all states -> qs
         self.predict_qs = K.function(inputs=[s], outputs=qs)
+        # update target network with weights from trained network
         self.update_weights = K.function(inputs=[], outputs=[], updates=target_updates)
 
 
@@ -132,34 +150,145 @@ class HybridRewardArchitecture(Agent):
         """
         pass
 
-    def act(self, s):
-        q = np.array(self.predict_qs([s]))
-        # sum over corresponding action for all models -> vertical
-        q = np.sum(q, axis=0)
-        # get argmax from array -> horizontal
-        return np.argmax(q, axis=1)
-
-
-
-    def _create_head(self, fruit_array):
-        """
-        create head for every fruit position
-        n_heads = n_fruits
-        Input:
-        Output:
-        """
-
-
-
-
-
-    def aggregator(self):
+    def get_max_action(self, state):
         """
         aggregate the outputs of the heads
         Input:
+            state (np.array): state
         Output:
+            action (int): action choosen over all heads
+            q (np.array): q-values
         """
+        state = self._reshape(state)
+        q = np.array(self.predict_qs([state]))
+        # sum over corresponding action for all models -> vertical
+        q = np.sum(q, axis=0)
+        print(Font.green + 'Q Value' + Font.end)
+        print(q)
+        # get argmax from array -> horizontal
+        return np.argmax(q, axis=1)
 
+    def act(self, state):
+        if self.rng.binomial(1, self.epsilon):
+            return self.rng.randint(self.output_dim)
+        else:
+            return self.get_max_action(state=state), 
+
+    def train_on_batch(self, s, a, r, s_, t):
+        """
+        Train neural net on batch
+        Inputs:
+            s (np.array): state
+            a (np.array): action
+            r (np.array): reward
+            s_ (np.array): next state
+            t (np.array): terminal
+        Outputs:
+            losses (float): loss of mean squared error
+        """
+        s = self._reshape(s)
+        s_ = self._reshape(s_)
+        if len(r.shape) == 1:
+            r = np.expand_dims(r, axis=-1)
+        return self._train_on_batch([s, a, r, s_, t])
+
+    def learn(self):
+        """
+        Ouputs:
+            losses (float): loss output of mean squared error
+        """
+        batch_size = min(self.minibatch_size, self.replay_buffer.__len__())
+        s, a, r, s_, t = self.replay_buffer.sample(self.minibatch_size)
+        losses = self.train_on_batch(s, a, r, s_, t)
+        if self.update_counter == self.update_freq:
+            self.update_weights([])
+            self.update_counter = 0
+        else:
+            self.update_counter += 1
+        return losses
+
+    def training_print(self, step_counter: int, timing_list: list) -> None:
+        """
+        print terminal output for training
+        """
+        if len(timing_list) > 30:
+            mean_v = np.mean(np.array(timing_list[-30:-1]) - np.array(timing_list[-31:-2]))
+        else:
+            mean_v = np.inf
+        text = '\r' + misc.Font.yellow + \
+            '>>> Training: {}/{} --- {: .1f} steps/second' + misc.Font.end
+        print(text.format(step_counter, self.num_steps, 1/mean_v), end='', flush=True)
+
+
+    def do_episode(self):
+        reward = []
+        step_counter = 0
+        for epoch in range(self.num_epochs):
+            for episode in range(self.num_episodes):
+                # states = []
+                state, _, _, _ = self.env.reset()
+                rew = 0
+                timing = [0.0]
+                for step in range(self.num_steps):
+                    timing.append(time.time())
+                    self.training_print(step_counter=step+1, timing_list=timing)
+
+                    action = self.act(state)
+                    self.calc_eps_decay(step_counter=step_counter)
+                    print(Font.green + 'action' + Font.end)
+                    print(action)
+                    next_state, r, terminated, info = self.env.step(action)
+                    state_low = next_state[2, ...]
+                    self.replay_buffer.add(obs_t=state, act=action, rew=r, obs_tp1=next_state, done=terminated)
+                    # learn every 4 steps
+                    if step % 4 == 0:
+                        loss = self.learn()
+
+                    state = next_state
+                    self.env.render()
+                    step_counter += 1
+
+                    if step == self.num_steps - 1:
+                        terminated = True
+                    rew += r
+                    if terminated is True:
+                        print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
+                              format(episode, self.num_episodes, epoch,
+                                     self.num_epochs, rew, self.epsilon, step_counter))
+                        reward.append((rew, step_counter, step))
+                        with open(os.path.join('output', 'reward.yml'), 'w') as f:
+                            yaml.dump(reward, f)
+                        break
+
+
+    def calc_eps_decay(self, step_counter: int) -> None:
+        """
+        calculates new epsilon for the given step counter according to the annealing formula
+        y = -mx + c
+        eps = -(eps - eps_min) * counter + eps
+        Input:
+            counter (int): step counter
+        """
+        if self.epsilon > self.epsilon_min:
+            self.epsilon = -((self.params['epsilon'] - self.epsilon_min) /
+                                self.params['eps_max_frame']) * step_counter + self.params['epsilon']
+
+
+    @staticmethod
+    def _reshape(states: np.array) -> np.array:
+        if len(states.shape) == 2:
+            states = np.expand_dims(states, axis=0)
+        if len(states.shape) == 3:
+            states = np.expand_dims(states, axis=1)
+        return states
+
+    @staticmethod
+    def weight_transfer(from_model: keras.Model, to_model: keras.Model) -> None:
+        """
+        transfer network weights
+        """
+        for f_model, t_model in zip(from_model, to_model):
+            t_model.set_weights(deepcopy(f_model.get_weights()))
 
 
     def main(self):
