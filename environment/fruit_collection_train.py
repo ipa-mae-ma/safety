@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.5.0
+@version: 2.5.1
 
 #############################################################################################
 
 History:
+- v2.5.1: update output filepath
 - v2.5.0: use of hra
 - v2.4.3: use architecture flag
 - v2.4.2: rename config yml file to capital letters
@@ -79,7 +80,8 @@ class FruitCollectionTrain(FruitCollection):
         print('Simple:\t\t', simple)
         print('Mode:\t\t', mode)
 
-        self.params = self.load_params(filename='config_A3C.yml')
+        param_name = 'config_' + str(architecture).upper() + '.yml'
+        self.params = self.load_params(filename=param_name)
         if mode == 'mini':
             params = self.params[mode]
             game_length = params['num_steps']
@@ -121,8 +123,7 @@ class FruitCollectionTrain(FruitCollection):
                                 params=params,
                                 env=self.env)
         elif architecture.lower() == 'hra':
-            self.hra = HybridRewardArchitecture(input_shape=self.input_shape,
-                                                output_dim=self.env.nb_actions,
+            self.hra = HybridRewardArchitecture(env=self.env,
                                                 params=params)
         else:
             raise ValueError('Incorrect architecture.')
@@ -221,7 +222,7 @@ class FruitCollectionTrain(FruitCollection):
                     Q_val = np.append(Q_val, np.array([[q_val]]), axis=0)
                     if step_counter % 100 == 0:
                         # np.savetxt('training_log_DQN.csv', loss, fmt='%.4f', delimiter=',')
-                        np.savetxt('q_val_DQN.csv', Q_val, fmt='%.4f', delimiter=',')
+                        np.savetxt(os.path.join('output', 'q_val_DQN.csv'), Q_val, fmt=' % .4f', delimiter=', ')
 
                     if verbose:
                         print("\033[2J\033[H\033[2J", end="")
@@ -254,7 +255,7 @@ class FruitCollectionTrain(FruitCollection):
                               format(episode, self.dqn.num_episodes, epoch,
                                      self.dqn.num_epochs, rew, self.dqn.epsilon, step_counter))
                         reward.append((rew, step_counter, step))
-                        with open('reward.yml', 'w') as f:
+                        with open(os.path.join('output', 'reward.yml'), 'w') as f:
                             yaml.dump(reward, f)
                         break
 
@@ -262,7 +263,7 @@ class FruitCollectionTrain(FruitCollection):
         self.a3c.train()
 
     def main_hra(self):
-        self.hra.main()
+        self.hra.do_episode()
 
 
 @click.command()
