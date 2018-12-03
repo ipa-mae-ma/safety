@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.5.1
+@version: 1.6.0
 
 #############################################################################################
 
 History:
+- v1.6.0: save path updated
 - v1.5.1: use architecture name from terminal
 - v1.5.0: only use capital letters for architectures
 - v1.4.4: update Qvalue plot
@@ -98,7 +99,7 @@ class Evaluation:
         if mode is None:
             raise ValueError('No mode value given!')
         self.src_filepath = os.getcwd()
-        self.architecture = architecture
+        self.architecture = architecture.upper()
         self.plot_filename = None
         self.load_files(filepath=self.src_filepath, mode=mode)
         self.tgt_filepath = os.path.join(os.path.dirname(
@@ -107,15 +108,16 @@ class Evaluation:
             os.makedirs(self.tgt_filepath)
 
     def load_files(self, filepath, mode):
-        with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
+        filepath_output = os.path.join(filepath, 'output')
+        with open(os.path.join(filepath_output, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
         with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_' + self.architecture + '.yml'), 'r') as file:
             self.dqn_config = yaml.load(file)
         self.dqn_config = self.dqn_config[mode]
-        with open(os.path.join(filepath, 'model_' + self.architecture + '.yml'), 'r') as file:
+        with open(os.path.join(filepath_output, 'model_' + self.architecture + '.yml'), 'r') as file:
             self.model = yaml.load(file)
         csv_path = os.path.join(
-            filepath, 'training_log_' + self.architecture + '.csv')
+            filepath_output, 'training_log_' + self.architecture + '.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
 
     def load_files_update(self, filepath):
@@ -149,8 +151,8 @@ class Evaluation:
         ax2.set_xlabel('steps', fontsize=35)
         ax2.set_ylabel('scores', fontsize=35)
 
-        ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
-        ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+        # ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+        # ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
         ax1.legend(fontsize=25)
         # ax2.legend(fontsize=25)
         ax1.grid()
@@ -175,6 +177,8 @@ class Evaluation:
             model = '-Conv2D'
         elif self.architecture == 'A3C' and self.model['config']['layers'][1]['class_name'] == 'Conv2D':
             model = '-Conv2D'
+        elif self.architecture == 'HRA':
+            model = '-u' + str(self.model['config']['layers'][2]['config']['units'])
         else:
             model = '-u' + str(self.model['config'][0]['config']['units'])
         if not update:
@@ -217,10 +221,13 @@ class Evaluation:
     def save_all(self):
         self.plot(show=False)
         print('–'*50)
-        filelist = ['weights.h5', 'target_weights.h5',
-                    'reward.yml', 'replay_buffer.pkl', 'training_log_' + self.architecture + '.csv',
+        # filelist = ['weights.h5', 'target_weights.h5',
+        #             'reward.yml', 'replay_buffer.pkl', 'training_log_' + self.architecture + '.csv',
+        #             self.plot_filename, 'architectures/config_' + self.architecture + '.yml', 
+        #             'model_' + self.architecture + '.yml']
+        filelist = ['output/reward.yml', 'output/training_log_' + self.architecture + '.csv',
                     self.plot_filename, 'architectures/config_' + self.architecture + '.yml', 
-                    'model_' + self.architecture + '.yml']
+                    'output/model_' + self.architecture + '.yml']
         folder = datetime.datetime.today().strftime(
             '%Y_%m_%d-%H_%M') + '___' + self.plot_filename.replace('.pdf', '' + '_' + self.architecture)
         folderpath = os.path.join(self.tgt_filepath, folder)
