@@ -5,11 +5,15 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.2.1
 
 #############################################################################################
 
 History:
+- v1.2.1: use maluuba experience replay buffer
+- v1.2.0: update optimizer to use all inputs instead of only models[0] input
+- v1.1.2: update layers
+- v1.1.1: add flatten layer
 - v1.1.0: add functions
 - v1.0.1: build model
 - v1.0.0: first init
@@ -25,7 +29,7 @@ import random
 from copy import deepcopy
 import time
 
-from architectures.replay_buffer import ReplayBuffer
+from architectures.replay_buffer import ReplayBuffer, ExperienceReplay
 import architectures.misc as misc
 from architectures.misc import Font
 from architectures.agent import Agent
@@ -34,8 +38,7 @@ from architectures.agent import Agent
 class HybridRewardArchitecture(Agent):
     def __init__(self, env, params):
         self.env = env
-        self.input_shape = self.env.state_shape # [4, 10, 10]
-        self.input_dim = self.env.state_shape[0] * self.env.state_shape[1] * self.env.state_shape[2]
+        self.input_shape = self.env.state_shape # [110] because 'state_mode=mini'
         self.output_dim = self.env.nb_actions
         self.n_heads = 10
 
@@ -45,8 +48,10 @@ class HybridRewardArchitecture(Agent):
         self.rng = np.random.RandomState(self.params['random_seed'])
         self.epsilon = self.params['epsilon']
         self.epsilon_min = self.params['epsilon_min']
-        self.replay_buffer = ReplayBuffer(
-            max_size=self.params['replay_memory_size'])
+        self.replay_buffer = ReplayBuffer(max_size=self.params['replay_memory_size'])
+        self.transitions = ExperienceReplay(max_size=self.params['replay_memory_size'], history_len=1, rng=self.rng,
+                                            state_shape=self.input_shape, action_dim=1, # action_dim is 1 because we only have 1 actino
+                                            reward_dim=len(self.env.possible_fruits))
         self.minibatch_size = self.params['minibatch_size']
         self.update_counter = 0
         self.update_freq = self.params['update_frequency']
@@ -69,11 +74,12 @@ class HybridRewardArchitecture(Agent):
         Output:
             model (keras.model): model
         """
-        input_shape = (None,) + tuple(self.input_shape)
-        layer_input = keras.Input(batch_shape=input_shape, name='input')
-        l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
+        input_shape = (1,) + tuple(self.input_shape)
+        layer_input = keras.Input(shape=input_shape, name='input')
+        flatten = keras.layers.Flatten()(layer_input)
+        l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
         out = keras.layers.Dense(self.output_dim, activation='relu', kernel_initializer='he_uniform', name='out')(l_dense)
-        model = keras.Model(inputs=[layer_input], outputs=[out])
+        model = keras.Model(inputs=layer_input, outputs=out)
         # model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy'])
         return model
 
@@ -95,10 +101,10 @@ class HybridRewardArchitecture(Agent):
         return loss
 
     def _build_optimizer(self):
-        s = self.models[0].input
+        s = K.placeholder(shape=tuple([None] + [1] + self.input_shape))
         a = K.placeholder(ndim=1, dtype='int32')
         r = K.placeholder(ndim=2, dtype='float32')
-        s_ = self.models[0].input
+        s_ = K.placeholder(shape=tuple([None] + [1] + self.input_shape))
         t = K.placeholder(ndim=1, dtype='float32')
 
         updates = []
@@ -172,7 +178,7 @@ class HybridRewardArchitecture(Agent):
         if self.rng.binomial(1, self.epsilon):
             return self.rng.randint(self.output_dim)
         else:
-            return self.get_max_action(state=state), 
+            return self.get_max_action(state=state)
 
     def train_on_batch(self, s, a, r, s_, t):
         """
@@ -186,10 +192,11 @@ class HybridRewardArchitecture(Agent):
         Outputs:
             losses (float): loss of mean squared error
         """
-        s = self._reshape(s)
-        s_ = self._reshape(s_)
+        # s = self._reshape(s)
+        # s_ = self._reshape(s_)
         if len(r.shape) == 1:
             r = np.expand_dims(r, axis=-1)
+        # inputs = [s, a, r, s_, t]
         return self._train_on_batch([s, a, r, s_, t])
 
     def learn(self):
@@ -197,8 +204,12 @@ class HybridRewardArchitecture(Agent):
         Ouputs:
             losses (float): loss output of mean squared error
         """
-        batch_size = min(self.minibatch_size, self.replay_buffer.__len__())
-        s, a, r, s_, t = self.replay_buffer.sample(self.minibatch_size)
+        # if self.replay_buffer.__len__() < self.minibatch_size:
+        #     return
+        if self.transitions.size < self.minibatch_size:
+            return
+        # s, a, r, s_, t = self.replay_buffer.sample(self.minibatch_size)
+        s, a, r, s_, t = self.transitions.sample(self.minibatch_size)
         losses = self.train_on_batch(s, a, r, s_, t)
         if self.update_counter == self.update_freq:
             self.update_weights([])
@@ -238,8 +249,11 @@ class HybridRewardArchitecture(Agent):
                     print(Font.green + 'action' + Font.end)
                     print(action)
                     next_state, r, terminated, info = self.env.step(action)
+                    reward_channels = info['head_reward']
                     state_low = next_state[2, ...]
-                    self.replay_buffer.add(obs_t=state, act=action, rew=r, obs_tp1=next_state, done=terminated)
+                    # self.replay_buffer.add(obs_t=state, act=action, rew=reward_channels, 
+                    #                        obs_tp1=next_state, done=terminated)
+                    self.transitions.add(s=state, a=action, r=reward_channels, t=terminated)
                     # learn every 4 steps
                     if step % 4 == 0:
                         loss = self.learn()
@@ -276,10 +290,10 @@ class HybridRewardArchitecture(Agent):
 
     @staticmethod
     def _reshape(states: np.array) -> np.array:
-        if len(states.shape) == 2:
+        if len(states.shape) == 2 or len(states.shape) == 1:
             states = np.expand_dims(states, axis=0)
         if len(states.shape) == 3:
-            states = np.expand_dims(states, axis=1)
+            states = np.expand_dims(states, axis=0)
         return states
 
     @staticmethod
