@@ -5,11 +5,13 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.1
+@version: 1.2.3
 
 #############################################################################################
 
 History:
+- v1.2.3: update layers
+- v1.2.2: save loss
 - v1.2.1: use maluuba experience replay buffer
 - v1.2.0: update optimizer to use all inputs instead of only models[0] input
 - v1.1.2: update layers
@@ -61,6 +63,7 @@ class HybridRewardArchitecture(Agent):
 
         self.models = [self._build_network() for _ in range(self.n_heads)]
         self.model_yaml = self.models[0].to_yaml()
+        self.save_model_yaml(architecture='HRA')
         print(self.model_yaml)
         self.target_models = [self._build_network() for _ in range(self.n_heads)]
         self.all_model_params = self.flatten([model.trainable_weights for model in self.models])
@@ -77,8 +80,9 @@ class HybridRewardArchitecture(Agent):
         input_shape = (1,) + tuple(self.input_shape)
         layer_input = keras.Input(shape=input_shape, name='input')
         flatten = keras.layers.Flatten()(layer_input)
-        l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
-        out = keras.layers.Dense(self.output_dim, activation='relu', kernel_initializer='he_uniform', name='out')(l_dense)
+        # l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
+        l_dense = keras.layers.Dense(25, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
+        out = keras.layers.Dense(self.output_dim, activation='linear', kernel_initializer='he_uniform', name='out')(l_dense)
         model = keras.Model(inputs=layer_input, outputs=out)
         # model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy'])
         return model
@@ -95,7 +99,7 @@ class HybridRewardArchitecture(Agent):
         amask = tf.one_hot(a, q.get_shape()[1], 1.0, 0.0)
         # predictions have shape (len(actions), 1)
         predictions = tf.reduce_sum(q * amask, axis=1)
-
+        # TODO: check for K.mean instead of K.max
         targets = r + (1 - t) * self.gamma * K.max(q_, axis=1)
         loss = K.sum((targets - predictions) ** 2)
         return loss
@@ -120,6 +124,7 @@ class HybridRewardArchitecture(Agent):
             # compute loss for reward of head i
             loss = self._compute_loss(qs[-1], a, r[:, i], t, qs_[-1])
             # rho and epsilon from Maluuba implementation
+            # TODO: use Adam optimizer instead of RMSprop
             optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.95, epsilon=1e-7)
             updates += optimizer.get_updates(params=self.models[i].trainable_weights, loss=loss)
             losses += loss
@@ -147,14 +152,6 @@ class HybridRewardArchitecture(Agent):
         """
         return list(np.array(l).flatten())
 
-    def _create_gvf(self):
-        """
-        create as many as general value functions as there are fields
-        n_gvf = input_shape[x] * input_shape[y]
-        Input:
-        Output:
-        """
-        pass
 
     def get_max_action(self, state):
         """
@@ -166,16 +163,16 @@ class HybridRewardArchitecture(Agent):
             q (np.array): q-values
         """
         state = self._reshape(state)
-        q = np.array(self.predict_qs([state]))
+        q = np.array(self.predict_qs([state[np.newaxis, ...]]))
         # sum over corresponding action for all models -> vertical
         q = np.sum(q, axis=0)
-        print(Font.green + 'Q Value' + Font.end)
-        print(q)
         # get argmax from array -> horizontal
         return np.argmax(q, axis=1)
+        # return np.argmax(q)
 
     def act(self, state):
-        if self.rng.binomial(1, self.epsilon):
+        # if self.rng.binomial(1, self.epsilon):
+        if self.rng.rand() < self.epsilon:
             return self.rng.randint(self.output_dim)
         else:
             return self.get_max_action(state=state)
@@ -234,6 +231,7 @@ class HybridRewardArchitecture(Agent):
     def do_episode(self):
         reward = []
         step_counter = 0
+        loss_array = np.zeros((0, 3))
         for epoch in range(self.num_epochs):
             for episode in range(self.num_episodes):
                 # states = []
@@ -245,9 +243,11 @@ class HybridRewardArchitecture(Agent):
                     self.training_print(step_counter=step+1, timing_list=timing)
 
                     action = self.act(state)
+                    if False:
+                        print()
+                        print(Font.green + 'action' + Font.end)
+                        print(action)
                     self.calc_eps_decay(step_counter=step_counter)
-                    print(Font.green + 'action' + Font.end)
-                    print(action)
                     next_state, r, terminated, info = self.env.step(action)
                     reward_channels = info['head_reward']
                     state_low = next_state[2, ...]
@@ -257,6 +257,13 @@ class HybridRewardArchitecture(Agent):
                     # learn every 4 steps
                     if step % 4 == 0:
                         loss = self.learn()
+                        if loss is None:
+                            loss = 0.0
+                        else:
+                            loss = loss[0]
+                    loss_array = np.append(loss_array, np.array([[0, 0, loss]]), axis=0)
+                    if step % 100 == 0:
+                        np.savetxt(os.path.join('output', 'training_log_HRA.csv'), loss_array, fmt='%.4f', delimiter=',')
 
                     state = next_state
                     self.env.render()
@@ -290,10 +297,10 @@ class HybridRewardArchitecture(Agent):
 
     @staticmethod
     def _reshape(states: np.array) -> np.array:
-        if len(states.shape) == 2 or len(states.shape) == 1:
+        if len(states.shape) == 2:
             states = np.expand_dims(states, axis=0)
         if len(states.shape) == 3:
-            states = np.expand_dims(states, axis=0)
+            states = np.expand_dims(states, axis=1)
         return states
 
     @staticmethod
