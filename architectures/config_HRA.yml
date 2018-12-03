@@ -34,17 +34,17 @@ mini:
   minibatch_size: 32
   gamma: 0.99
   replay_memory_size: 10000
-  update_frequency: 50
+  update_frequency: 100
   ################################
   learning_rate: 0.001
   ################################
-  epsilon: 0.1
+  epsilon: 0.9
   epsilon_min: 0.01
   eps_max_frame: 100000
   ################################
   num_epochs: 10
   num_episodes: 100
-  num_steps: 1500
+  num_steps: 300
   random_seed: 12
   # random_seed: 1234
 
