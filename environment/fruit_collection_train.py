@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.5.1
+@version: 2.5.2
 
 #############################################################################################
 
 History:
+- v2.5.2: use state mode 'mini' for hra
 - v2.5.1: update output filepath
 - v2.5.0: use of hra
 - v2.4.3: use architecture flag
@@ -85,7 +86,12 @@ class FruitCollectionTrain(FruitCollection):
         if mode == 'mini':
             params = self.params[mode]
             game_length = params['num_steps']
-            self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
+            if architecture.lower() == 'hra':
+                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, 
+                                                image_saving=False, game_length=game_length, state_mode='mini')
+            else:
+                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, 
+                                                image_saving=False, game_length=game_length)
         elif mode == 'small':
             params = self.params[mode]
             game_length = params['num_steps']
