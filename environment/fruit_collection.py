@@ -494,7 +494,7 @@ class FruitCollectionSmall(FruitCollection):
 
 class FruitCollectionMini(FruitCollection):
     def init_with_mode(self):
-        self.is_ghost = False
+        # self.is_ghost = False
         self.is_fruit = True
         self.nb_fruits = 5
         self.possible_fruits = [[0, 0], [0, 9], [1, 2], [3, 6], [4, 4], [5, 7], [6, 2], [7, 7], [8, 8], [9, 0]]
