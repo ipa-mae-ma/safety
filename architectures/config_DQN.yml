@@ -88,17 +88,3 @@ small:
   num_steps: 500
   target_network_update_frequency: 500
   random_seed: 1234
-
-
-dqn_1:
-  gamma: 0.85
-  learning_rate: 0.0005
-  use_hra: False
-hra: 
-  gamma: 0.99
-  learning_rate: 0.001
-  use_hra: True
-hra_1:
-  gamma: 0.99
-  learning_rate: 0.001
-  use_hra: True
