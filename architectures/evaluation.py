@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.6.0
+@version: 1.6.1
 
 #############################################################################################
 
 History:
+- v1.6.1: update for HRA with tabular or deep implementation
 - v1.6.0: save path updated
 - v1.5.1: use architecture name from terminal
 - v1.5.0: only use capital letters for architectures
@@ -99,7 +100,8 @@ class Evaluation:
         if mode is None:
             raise ValueError('No mode value given!')
         self.src_filepath = os.getcwd()
-        self.architecture = architecture.upper()
+        self.deep = True if architecture.upper().count('_D') else False
+        self.architecture = architecture.upper()[:3]
         self.plot_filename = None
         self.load_files(filepath=self.src_filepath, mode=mode)
         self.tgt_filepath = os.path.join(os.path.dirname(
@@ -138,21 +140,31 @@ class Evaluation:
         legends = []
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 12))
-        ax1.plot([_ for _ in range(len(smoothed))], smoothed, 'b', label='loss')
-        ax1.set_ylabel('loss', fontsize=35)
+        if self.architecture == 'HRA' and not self.deep:
+            ax1.plot(self.csv[:, 0], smoothed[:-30],
+                     'b', label='mean Q-values')
+            ax1.set_ylabel('mean Q-values', fontsize=35)
+        elif self.architecture == 'HRA' and self.deep:
+            ax1.plot(self.csv[:, 0], smoothed[:-30],
+                     'b', label='loss')
+            ax1.set_ylabel('loss', fontsize=35)
+        else:
+            ax1.plot([_ for _ in range(len(smoothed))],
+                     smoothed, 'b', label='loss')
+            ax1.set_ylabel('loss', fontsize=35)
 
         if len(self.reward) <= 11:
             raise ValueError('Too few episodes played...')
         score_value = [x[0] for x in self.reward]
         score_time = [x[1] for x in self.reward]
-        legend, = ax2.plot(score_time, smooth(np.array(score_value), 11)
-                           [:-10], 'r', label='scores')
+        legend, = ax2.plot(score_time, smooth(np.array(score_value), 11)[
+                           :-10], 'r', label='scores')
         legends.append(legend)
         ax2.set_xlabel('steps', fontsize=35)
         ax2.set_ylabel('scores', fontsize=35)
 
         # ax1.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
-        # ax2.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+        # ax2.set_xlim([- len(score_time)*.05, len(score_time)*1.05])
         ax1.legend(fontsize=25)
         # ax2.legend(fontsize=25)
         ax1.grid()
@@ -167,7 +179,7 @@ class Evaluation:
                                     [:-10], 'b--', label='steps/episode')
             legends.append(legend)
             ax2right.set_ylabel('steps per episode', fontsize=35)
-            ax2right.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
+            # ax2right.set_xlim([- len(smoothed)*.05, len(smoothed)*1.05])
             # ax2right.legend(fontsize=25)
         # show both legends for second subplot
         plt.legend(handles=legends, fontsize=25, loc='center right')
@@ -178,7 +190,8 @@ class Evaluation:
         elif self.architecture == 'A3C' and self.model['config']['layers'][1]['class_name'] == 'Conv2D':
             model = '-Conv2D'
         elif self.architecture == 'HRA':
-            model = '-u' + str(self.model['config']['layers'][2]['config']['units'])
+            model = '-u' + str(self.model['config']
+                               ['layers'][2]['config']['units'])
         else:
             model = '-u' + str(self.model['config'][0]['config']['units'])
         if not update:
@@ -223,10 +236,10 @@ class Evaluation:
         print('–'*50)
         # filelist = ['weights.h5', 'target_weights.h5',
         #             'reward.yml', 'replay_buffer.pkl', 'training_log_' + self.architecture + '.csv',
-        #             self.plot_filename, 'architectures/config_' + self.architecture + '.yml', 
+        #             self.plot_filename, 'architectures/config_' + self.architecture + '.yml',
         #             'model_' + self.architecture + '.yml']
         filelist = ['output/reward.yml', 'output/training_log_' + self.architecture + '.csv',
-                    self.plot_filename, 'architectures/config_' + self.architecture + '.yml', 
+                    self.plot_filename, 'architectures/config_' + self.architecture + '.yml',
                     'output/model_' + self.architecture + '.yml']
         folder = datetime.datetime.today().strftime(
             '%Y_%m_%d-%H_%M') + '___' + self.plot_filename.replace('.pdf', '' + '_' + self.architecture)

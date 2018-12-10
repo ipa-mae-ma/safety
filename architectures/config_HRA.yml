@@ -36,6 +36,7 @@ mini:
   replay_memory_size: 10000
   update_frequency: 100
   ################################
+  # FIXME: use lower learning rate
   learning_rate: 0.001
   ################################
   epsilon: 0.9
