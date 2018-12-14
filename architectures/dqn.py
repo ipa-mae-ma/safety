@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.1.1
+@version: 2.1.2
 
 #############################################################################################
 
 History:
+- v2.1.2: output model update
 - v2.1.1: update file save paths
 - v2.1.0: update kernel initializer to work with reward <100
 - v2.0.3: delete unused variables
@@ -131,8 +132,8 @@ class DeepQNetwork:
         self.loss = [0.0 for _ in self.model.metrics_names]
 
         print(Font.yellow + '–' * 100 + Font.end)
-        print('Save model as "model.yml"')
-        with open(os.path.join(self.output_path, 'model.yml'), 'w') as file:
+        print('Save model as "model_DQN.yml"')
+        with open(os.path.join(self.output_path, 'model_DQN.yml'), 'w') as file:
             file.write(self.model_yaml)
         print(Font.yellow + '–' * 100 + Font.end)
         # do warmstart
