@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.2.2
+@version: 3.2.3
 
 #############################################################################################
 
 History:
+- v3.2.3: update kernel_initializer, optimizer and neurons
 - v3.2.2: update output path
 - v3.2.1: update plots (again)
 - v3.2.0: update plots
@@ -117,13 +118,14 @@ class A3CGlobal(Agent):
         """
         
         if self.simple_a3c:
+            kernel_init = self.params['kernel_initializer']
             input_shape = (None,) + self.input_shape
             # layer_input = keras.Input(batch_shape=(None, self.input_shape))
             layer_input = keras.Input(batch_shape=input_shape, name='input')
-            l_dense = keras.layers.Dense(250, activation='relu', kernel_initializer='he_uniform', name='dense')(layer_input)
+            l_dense = keras.layers.Dense(self.params['neurons'], activation='relu', kernel_initializer=kernel_init, name='dense')(layer_input)
 
-            out_actions = keras.layers.Dense(self.output_dim, kernel_initializer='he_uniform', activation='softmax', name='out_a')(l_dense)
-            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform', name='out_v')(l_dense)
+            out_actions = keras.layers.Dense(self.output_dim, kernel_initializer=kernel_init, activation='softmax', name='out_a')(l_dense)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer=kernel_init, name='out_v')(l_dense)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             model._make_predict_function()
@@ -138,27 +140,28 @@ class A3CGlobal(Agent):
 
             return model
         else:
+            kernel_init = self.params['kernel_initializer']
             input_shape = (None,) + self.input_shape + (1,)  # (height, width, channels=1)
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
             layer_input = keras.Input(batch_shape=(None, 80, 80, 1))
             l_hidden1 = keras.layers.Conv2D(filters=16, kernel_size=(8, 8),
                                             strides=4, activation='relu',
-                                            kernel_initializer='he_uniform', 
+                                            kernel_initializer=kernel_init, 
                                             padding='same',
                                             data_format='channels_last')(layer_input)
             # second hidden layer
             l_hidden2 = keras.layers.Conv2D(filters=32, kernel_size=(4, 4),
                                             strides=2, activation='relu', 
                                             padding='same',
-                                            kernel_initializer='he_uniform')(l_hidden1)
+                                            kernel_initializer=kernel_init)(l_hidden1)
             dropout = keras.layers.Dropout(.1)(l_hidden2)
             # third hidden layer
             # l_flatten = keras.layers.Flatten()(l_hidden2)
             l_flatten = keras.layers.Flatten()(dropout)
-            l_full = keras.layers.Dense(256, activation='softmax', kernel_initializer='he_uniform')(l_flatten)
-            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer='he_uniform')(l_full)
-            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer='he_uniform')(l_full)
+            l_full = keras.layers.Dense(256, activation='softmax', kernel_initializer=kernel_init)(l_flatten)
+            out_actions = keras.layers.Dense(self.output_dim, activation='softmax', kernel_initializer=kernel_init)(l_full)
+            out_value = keras.layers.Dense(1, activation='linear', kernel_initializer=kernel_init)(l_full)
 
             model = keras.Model(inputs=[layer_input], outputs=[out_actions, out_value])
             model._make_predict_function()
@@ -213,7 +216,13 @@ class A3CGlobal(Agent):
         #                         [loss_actor, loss_value, entropy], updates = updates)
         # return train
 
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
+        if self.params['optimizer'] == 'RMSProp':
+            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.l_rate)
+        elif self.params['optimizer'] == 'Adam':
+            optimizer = tf.train.AdamOptimizer(learning_rate=self.l_rate)
+        else:
+            raise ValueError('Bad value for optimizer')
+            
         # Compute the gradients for a list of variables.
         # minimize = optimizer.minimize(loss_total)
         

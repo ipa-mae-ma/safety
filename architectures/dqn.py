@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.1.2
+@version: 2.1.3
 
 #############################################################################################
 
 History:
+- v2.1.3: update kernel_initializer, optimizer and neurons
 - v2.1.2: output model update
 - v2.1.1: update file save paths
 - v2.1.0: update kernel initializer to work with reward <100
@@ -159,15 +160,16 @@ class DeepQNetwork:
         model = keras.Sequential()
         
         if self.simple_dqn:
+            kernel_init = self.params['kernel_initializer']
             # use input_dim instead of input_shape | dim=100 => shape=(100,) are equal
             # model.add(keras.layers.Dense(250, input_dim=self.input_dim,
-            model.add(keras.layers.Dense(250, input_shape=self.input_shape,
-                                            activation='relu', kernel_initializer='he_uniform'))
+            model.add(keras.layers.Dense(self.params['neurons'], input_shape=self.input_shape,
+                                            activation='relu', kernel_initializer=kernel_init))
             # hidden layer
             # model.add(keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim,
-                                            activation='linear', kernel_initializer='he_uniform'))
+                                            activation='linear', kernel_initializer=kernel_init))
             model.summary()
             # for evaluation purpose
             self.model_yaml = model.to_yaml()
@@ -177,8 +179,13 @@ class DeepQNetwork:
             #                                                     momentum=self.params['gradient_momentum']),
             #                 loss='mean_squared_error',
             #                 metrics=['accuracy'])
-            model.compile(optimizer=keras.optimizers.RMSprop(lr=self.l_rate,
-                                                            rho=0.9),
+            if self.params['optimizer'] == 'RMSProp':
+                optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.9)
+            elif self.params['optimizer'] == 'Adam':
+                optimizer = keras.optimizers.Adam(lr=self.l_rate)
+            else:
+                raise ValueError('Bad value for optimizer')
+            model.compile(optimizer=optimizer,
                             loss='mean_squared_error',
                             metrics=['accuracy'])
 #                          loss=tf.losses.huber_loss,
@@ -191,8 +198,7 @@ class DeepQNetwork:
         else:
             # first hidden layer
             # input shape = (img_height, img_width, n_channels)
-            kernel_init = keras.initializers.VarianceScaling(
-                scale=1.0, mode='fan_out', distribution='normal', seed=None)
+            kernel_init = self.params['kernel_initializer']
 
             model.add(keras.layers.Conv2D(input_shape=self.input_shape, filters=32,
                                             kernel_size=(8, 8), strides=4, activation='relu',
@@ -214,16 +220,20 @@ class DeepQNetwork:
             model.summary()
             self.model_yaml = model.to_yaml()
             # compile model
-            model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
-                                                                decay=0.9,
-                                                                momentum=self.params['gradient_momentum']),
+
+            if self.params['optimizer'] == 'RMSProp':
+                optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.9)
+            elif self.params['optimizer'] == 'Adam':
+                optimizer = keras.optimizers.Adam(lr=self.l_rate)
+            else:
+                raise ValueError('Bad value for optimizer')
+            model.compile(optimizer=optimizer,
                             loss='mean_squared_error',
                             metrics=['accuracy'])
-            # model.compile(optimizer=keras.optimizers.RMSprop(lr=self.l_rate,
-            #                                                rho=0.9),
+            # model.compile(optimizer=tf.train.RMSPropOptimizer(learning_rate=self.l_rate,
+            #                                                     decay=0.9),
             #                 loss='mean_squared_error',
             #                 metrics=['accuracy'])
-        
         return model
 
     def warmstart(self, path: str) -> None:
