@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.5.2
+@version: 2.6.0
 
 #############################################################################################
 
 History:
+- v2.6.0: add aperture game by Kirolos Abdou
 - v2.5.2: use state mode 'mini' for hra
 - v2.5.1: update output filepath
 - v2.5.0: use of hra
@@ -59,6 +60,9 @@ from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
 ############################
+# DRL Game Aperture
+############################
+from drl_game.EnvClass import Game as ApertureGame
 
 ############################
 # RGB colors
@@ -90,15 +94,21 @@ class FruitCollectionTrain(FruitCollection):
                 self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, 
                                                 image_saving=False, game_length=game_length, state_mode='mini')
             else:
-                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, 
+                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=True, 
                                                 image_saving=False, game_length=game_length)
         elif mode == 'small':
             params = self.params[mode]
             game_length = params['num_steps']
             self.env = FruitCollectionSmall(rendering=render, lives=1, is_fruit=True, is_ghost=False, image_saving=False, game_length=game_length)
+        elif mode == 'aperture':
+            params = self.params[mode]
+            self.env = ApertureGame(uncertainty=False, rand_start=True, complexity=0)
+            self.env.Start_Game()
+            self.env.Run_Game()
         else:
             raise ValueError('Incorrect mode.')
 
+        self.mode = mode
         self.render = render
         self.env.render()
 
@@ -110,6 +120,7 @@ class FruitCollectionTrain(FruitCollection):
             # input shape = (img_height * img_width, )
             self.input_shape = (self.input_shape[0] * self.input_shape[1], )
             self.input_dim = self.input_shape[0]
+            print('Input Shape', self.input_shape)
         else:
             self.input_shape = (self.input_shape[0] * self.overblow_factor,
                             self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
@@ -187,7 +198,10 @@ class FruitCollectionTrain(FruitCollection):
                 # states = []
                 state, _, _, _ = self.env.reset()
                 if self.simple:
-                    state = self.mc.make_frame(state, do_overblow=False,
+                    if self.mode == 'aperture':
+                        state = state.reshape(self.input_shape)
+                    else:
+                        state = self.mc.make_frame(state, do_overblow=False,
                                            overblow_factor=None,
                                            normalization=True).reshape(self.input_shape)
                 else:
@@ -204,10 +218,13 @@ class FruitCollectionTrain(FruitCollection):
                     action, q_val = self.dqn.act(state)
                     self.dqn.calc_eps_decay(step_counter=step_counter)
                     next_state, r, terminated, info = self.env.step(action)
-                    state_low = next_state[2, ...]
+                    # state_low = next_state[2, ...]
 
                     if self.simple:
-                        next_state = self.mc.make_frame(next_state, do_overblow=False, 
+                        if self.mode == 'aperture':
+                            next_state = next_state.reshape(self.input_shape)
+                        else:
+                            next_state = self.mc.make_frame(next_state, do_overblow=False, 
                                                      overblow_factor=None,
                                                      normalization=True).reshape(self.input_shape)
                     else:
@@ -277,7 +294,7 @@ class FruitCollectionTrain(FruitCollection):
 @click.option('--simple/--no-simple', '-s/-ns', default=True, help='uses simple DQN network')
 @click.option('--render/--no-render', '-r/-nr', default=False, help='render the pygame')
 @click.option('--testing/--no-testing', '-t/-nt', default=False, help='test the network')
-@click.option('--mode', '-m', help='environment, possibilities: "mini", "small"')
+@click.option('--mode', '-m', help='environment, possibilities: "mini", "small", "aperture"')
 @click.option('--architecture', '-a', help='architecture used')
 def run(warmstart, simple, render, testing, mode, architecture):
     fct = FruitCollectionTrain(warmstart=warmstart, simple=simple, 
