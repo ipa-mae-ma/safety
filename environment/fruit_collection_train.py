@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.6.0
+@version: 2.6.1
 
 #############################################################################################
 
 History:
+- v2.6.1: delete unecessary functions
 - v2.6.0: add aperture game by Kirolos Abdou
 - v2.5.2: use state mode 'mini' for hra
 - v2.5.1: update output filepath
@@ -45,7 +46,7 @@ import yaml
 import click
 import tqdm
 # or FruitCollectionLarge or FruitCollectionMini
-from fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
+from environment.fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 ###############################
 # Necessary to import packages from different folders
 ###############################
@@ -79,7 +80,7 @@ np.set_printoptions(threshold=np.nan)
 class FruitCollectionTrain(FruitCollection):
     def __init__(self, warmstart=False, simple=True, 
                 render=False, testing=False, mode='mini',
-                architecture=None):
+                architecture=None, doe_params:dict=None):
         print('–'*100)
         print('Warmstart:\t', warmstart)
         print('Simple:\t\t', simple)
@@ -126,6 +127,10 @@ class FruitCollectionTrain(FruitCollection):
                             self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
         
+        # TODO: delete return after tests
+        self.params.update(doe_params)
+        print(self.params)
+        return
         
         if architecture.lower() == 'dqn':
             self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
@@ -156,23 +161,6 @@ class FruitCollectionTrain(FruitCollection):
         cfg_file = os.path.join(os.path.join(
             safety_path, 'architectures'), filename)
         return yaml.safe_load(open(cfg_file, 'r'))
-
-
-    def init_with_mode(self):
-        self.is_ghost = False
-        self.is_fruit = True
-        self.reward_scheme = {'ghost': -10.0, 'fruit': +1.0, 'step': 0.0, 'wall': 0.0}
-        self.nb_fruits = 4
-        self.scr_w = 5
-        self.scr_h = 5
-        self.possible_fruits = [[0, 0], [0, 4], [4, 0], [4, 4]]
-        self.rendering_scale = 50
-        self.walls = [[1, 0], [2, 0], [4, 1], [0, 2], [2, 2], [3, 3], [1, 4]]
-        if self.is_ghost:
-            self.ghosts = [{'colour': RED, 'reward': self.reward_scheme['ghost'], 'location': [0, 1],
-                            'active': True}]
-        else:
-            self.ghosts = []
 
 
     def training_print(self, step_counter: int, timing_list: list) -> None:
