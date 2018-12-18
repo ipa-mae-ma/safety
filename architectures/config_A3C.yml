@@ -15,6 +15,7 @@ loss_entropy_coefficient: 0.01
 ################################
 # RMSprop
 ################################
+kernel_initializer: he_uniform
 learning_rate: 0.005
 
 ################################
@@ -30,10 +31,9 @@ eps_max_frame: 100000
 num_epochs: 5
 num_episodes: 100
 num_steps: 300
-
+neurons: 250
 random_seed: 1234
 action_dim: 4
-num_units: 250
 
 
 mini:
@@ -46,6 +46,7 @@ mini:
   loss_value_coefficient: 0.5
   loss_entropy_coefficient: 0.01
   ################################
+  kernel_initializer: he_uniform
   learning_rate: 0.001
   ################################
   epsilon: 0.1
@@ -55,8 +56,8 @@ mini:
   num_epochs: 10
   num_episodes: 100
   num_steps: 1500
-  random_seed: 12
-  # random_seed: 1234
+  neurons: 250
+  random_seed: 1234
 
 small:
   ################################
@@ -68,6 +69,7 @@ small:
   loss_value_coefficient: 0.5
   loss_entropy_coefficient: 0.01
   ################################
+  kernel_initializer: he_uniform
   learning_rate: 0.005
   ################################
   epsilon: 1.0
@@ -77,4 +79,5 @@ small:
   num_epochs: 5
   num_episodes: 100
   num_steps: 300
+  neurons: 250
   random_seed: 1234

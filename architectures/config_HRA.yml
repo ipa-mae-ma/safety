@@ -8,6 +8,7 @@ update_frequency: 50
 ################################
 # RMSprop
 ################################
+kernel_initializer: he_uniform
 learning_rate: 0.005
 
 ################################
@@ -37,6 +38,7 @@ mini:
   update_frequency: 100
   ################################
   # FIXME: use lower learning rate
+  kernel_initializer: he_uniform
   learning_rate: 0.001
   ################################
   epsilon: 0.9
@@ -56,6 +58,7 @@ small:
   replay_memory_size: 10000
   update_frequency: 50
   ################################
+  kernel_initializer: he_uniform
   learning_rate: 0.005
   ################################
   epsilon: 1.0
