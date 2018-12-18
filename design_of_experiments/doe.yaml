@@ -1,8 +1,13 @@
 epochs: [5, 10, 20]
 learning_rate: [0.001, 0.01, 0.1]
+# use complex or simple network
 complex: [true, false]
+# initialization of neural net 
 init_method: [he_uniform, glorot_uniform]
+# optimizer for backpropagation
 optimizer: [Adam, RMSProp]
+# neurons in the hidden layer
 simple: [5, 10, 50, 100, 250]
 number_of_experiments: [50]
+# steps per episode
 steps: [300, 1000]
