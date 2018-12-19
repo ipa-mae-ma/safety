@@ -8,6 +8,7 @@ gamma: 0.99
 ################################
 # RMSprop
 ################################
+optimizer: RMSProp
 kernel_initializer: he_uniform
 learning_rate: 0.0005
 gradient_momentum: 0.95
@@ -46,6 +47,7 @@ mini:
   # gamma from HRA: 0.85
   gamma: 0.85
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.000025
   # lr from HRA: 0.0005
@@ -75,6 +77,7 @@ small:
   # gamma from HRA: 0.85
   gamma: 0.85
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.0005
   # lr from HRA: 0.0005

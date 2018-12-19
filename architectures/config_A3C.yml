@@ -15,6 +15,7 @@ loss_entropy_coefficient: 0.01
 ################################
 # RMSprop
 ################################
+optimizer: RMSProp
 kernel_initializer: he_uniform
 learning_rate: 0.005
 
@@ -46,6 +47,7 @@ mini:
   loss_value_coefficient: 0.5
   loss_entropy_coefficient: 0.01
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.001
   ################################
@@ -69,6 +71,7 @@ small:
   loss_value_coefficient: 0.5
   loss_entropy_coefficient: 0.01
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.005
   ################################
