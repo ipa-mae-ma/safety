@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: fruit game for the safety DRL package using different architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 2.6.1
+@version: 2.6.2
 
 #############################################################################################
 
 History:
+- v2.6.2: rearrange input order
 - v2.6.1: delete unecessary functions
 - v2.6.0: add aperture game by Kirolos Abdou
 - v2.5.2: use state mode 'mini' for hra
@@ -45,8 +46,6 @@ import time
 import yaml
 import click
 import tqdm
-# or FruitCollectionLarge or FruitCollectionMini
-from environment.fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 ###############################
 # Necessary to import packages from different folders
 ###############################
@@ -61,8 +60,10 @@ from architectures.hra import HybridRewardArchitecture
 from architectures.dqn import DeepQNetwork
 import architectures.misc as misc
 ############################
-# DRL Game Aperture
+# DRL Games
 ############################
+# or FruitCollectionLarge or FruitCollectionMini
+from environment.fruit_collection import FruitCollection, FruitCollectionSmall, FruitCollectionLarge, FruitCollectionMini
 from drl_game.EnvClass import Game as ApertureGame
 
 ############################
@@ -128,9 +129,10 @@ class FruitCollectionTrain(FruitCollection):
         self.mc = misc
         
         # TODO: delete return after tests
-        self.params.update(doe_params)
-        print(self.params)
-        return
+        if doe_params is not None:
+            self.params.update(doe_params)
+        # print(self.params)
+        # return
         
         if architecture.lower() == 'dqn':
             self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
