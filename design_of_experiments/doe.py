@@ -5,11 +5,12 @@ Created on December 14, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.1.0
+@version: 1.2.0
 
 #############################################################################################
 
 History:
+- v1.2.0: save results
 - v1.1.0: add class
 - v1.0.4: use global variables for yaml names
 - v1.0.3: use dict for all configurations
@@ -21,6 +22,9 @@ History:
 import yaml
 import os.path as path
 import itertools
+import datetime
+import shutil
+import time
 ###############################
 # Necessary to import packages from different folders
 ###############################
@@ -70,38 +74,80 @@ class DesignOfExperiments:
 
 
 
-class RunDoE:
+class RunDesignOfExperiments:
     def __init__(self):
         self.doe = DesignOfExperiments()
         self.experiments = yaml.load(open(path.join(self.doe.file_dir, OUTPUT_YAML), 'r'))
+        self.src_filepath = os.getcwd()
+        self.tgt_filepath = path.join(self.src_filepath, 'results')
+
+        if not path.exists(self.tgt_filepath):
+            os.makedirs(self.tgt_filepath)
 
 
-    def info(self):
+    def info(self) -> None:
         """
         print info text in terminal
         """
         print('–' * 100)
         print('Run tests for {} possible configurations.'.format(self.doe.how_many_possibilities()))
         print('Variables:')
-        print('NAME [ NUM OF CHANGES ]')
+        print('NAME [NUM OF CHANGES]')
         for key in self.doe.design_dict.keys():
-            print('- ', key, '[', len(self.doe.design_dict[key]), ']')
+            print('- ', key, '[' + str(len(self.doe.design_dict[key])) + ']')
         print('–' * 100)
 
-    def run(self):
-        for num, experiment in self.experiments.items():
-            print(num, experiment)
-        # fct = FruitCollectionTrain(warmstart=False, 
-        #                             simple=experiment['simple'], 
-        #                             render=False, 
-        #                             testing=False, 
-        #                             mode='mini', 
-        #                             architecture=experiment['architecture'], 
-        #                             doe_params=experiment)
+    def run(self) -> None:
+        """
+        run the experiments
+        """
+        return
+        global_time = time.time()
+        for ex_number, experiment in self.experiments.items():
+            start_time = time.time()
+            architecture = experiment['architecture']
+            # fct = FruitCollectionTrain(warmstart=False, 
+            #                             simple=experiment['simple'], 
+            #                             render=False, 
+            #                             testing=False, 
+            #                             mode='mini', 
+            #                             architecture=architecture, 
+            #                             doe_params=experiment)
+            self.save_results(architecture=architecture, experiment_number=ex_number)
+            time.sleep(1)
+            print(('–' * 100 + '\n') * 2)
+            print('>>> Time for experiment: {:.3f} min'.format((time.time() - start_time)/60))
+            print(('–' * 100 + '\n') * 2)
+        print(('–' * 100 + '\n') * 2)
+        print('>>> Overall time for experiments: {:.3f} min'.format((time.time() - global_time)/60))
+        print(('–' * 100 + '\n') * 2)
+
+    def save_results(self, architecture: str=None, experiment_number:int=None, game_mode: str='mini') -> None:
+        """
+        save the results of the experiment
+        """
+        if architecture is None or experiment_number is None:
+            raise ValueError('Please provide a correct architecture name or experiment number')
+        
+        filelist = ['output/reward.yml', 
+                    'output/training_log_' + architecture + '.csv',
+                    'architectures/config_' + architecture + '.yml',
+                    'output/model_' + architecture + '.yml']
+        # temp_dir?
+
+        output_folder_name = datetime.datetime.today().strftime('%Y_%m_%d-%H_%M') + '___' + architecture + '_' + str(experiment_number)
+        output_folder_path = os.path.join(self.tgt_filepath, output_folder_name)
+        print('>>> Save all files to: ' + output_folder_path)
+        if not os.path.exists(output_folder_path):
+            os.makedirs(output_folder_path)
+        for file in filelist:
+            shutil.copy2(os.path.join(self.src_filepath, file), output_folder_path)
+
+
 
 if __name__ == '__main__':
     doe = DesignOfExperiments()
     doe.create_experiments()
-    run_doe = RunDoE()
+    run_doe = RunDesignOfExperiments()
     run_doe.info()
     run_doe.run()
