@@ -5,11 +5,12 @@ Created on December 14, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.0
+@version: 1.2.1
 
 #############################################################################################
 
 History:
+- v1.2.1: save experiment yaml
 - v1.2.0: save results
 - v1.1.0: add class
 - v1.0.4: use global variables for yaml names
@@ -113,28 +114,36 @@ class RunDesignOfExperiments:
             #                             mode='mini', 
             #                             architecture=architecture, 
             #                             doe_params=experiment)
-            self.save_results(architecture=architecture, experiment_number=ex_number)
-            time.sleep(1)
             print(('–' * 100 + '\n') * 2)
+            self.save_results(architecture=architecture, 
+                              experiment_number=ex_number, 
+                              experiment_dict=experiment)
+            time.sleep(1)
             print('>>> Time for experiment: {:.3f} min'.format((time.time() - start_time)/60))
             print(('–' * 100 + '\n') * 2)
         print(('–' * 100 + '\n') * 2)
         print('>>> Overall time for experiments: {:.3f} min'.format((time.time() - global_time)/60))
         print(('–' * 100 + '\n') * 2)
 
-    def save_results(self, architecture: str=None, experiment_number:int=None, game_mode: str='mini') -> None:
+    def save_results(self, architecture: str=None, 
+                     experiment_number: int=None, 
+                     experiment_dict: dict=None,
+                     game_mode: str='mini') -> None:
         """
-        save the results of the experiment
+        save the results of the experiment including experiment yaml file
         """
         if architecture is None or experiment_number is None:
             raise ValueError('Please provide a correct architecture name or experiment number')
         
+        experiment_file_name = 'experiment_' + str(experiment_number) + '.yaml'
+        yaml.dump(experiment_dict, open(path.join('output', experiment_file_name), 'w'))
+
         filelist = ['output/reward.yml', 
                     'output/training_log_' + architecture + '.csv',
                     'architectures/config_' + architecture + '.yml',
-                    'output/model_' + architecture + '.yml']
-        # temp_dir?
-
+                    'output/model_' + architecture + '.yml',
+                    path.join('output', experiment_file_name)]
+        
         output_folder_name = datetime.datetime.today().strftime('%Y_%m_%d-%H_%M') + '___' + architecture + '_' + str(experiment_number)
         output_folder_path = os.path.join(self.tgt_filepath, output_folder_name)
         print('>>> Save all files to: ' + output_folder_path)
