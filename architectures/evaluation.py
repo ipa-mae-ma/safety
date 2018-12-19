@@ -114,8 +114,8 @@ class Evaluation:
         with open(os.path.join(filepath_output, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
         with open(os.path.join(os.path.join(filepath, 'architectures'), 'config_' + self.architecture + '.yml'), 'r') as file:
-            self.dqn_config = yaml.load(file)
-        self.dqn_config = self.dqn_config[mode]
+            self.architecture_config = yaml.load(file)
+        self.architecture_config = self.architecture_config[mode]
         with open(os.path.join(filepath_output, 'model_' + self.architecture + '.yml'), 'r') as file:
             self.model = yaml.load(file)
         csv_path = os.path.join(
@@ -126,7 +126,7 @@ class Evaluation:
         with open(os.path.join(filepath, 'reward.yml'), 'r') as file:
             self.reward = yaml.load(file)
         with open(os.path.join(filepath, 'config_' + self.architecture + '.yml'), 'r') as file:
-            self.dqn_config = yaml.load(file)
+            self.architecture_config = yaml.load(file)
         with open(os.path.join(filepath, 'model_' + self.architecture + '.yml'), 'r') as file:
             self.model = yaml.load(file)
         csv_path = os.path.join(
@@ -196,13 +196,13 @@ class Evaluation:
             model = '-u' + str(self.model['config'][0]['config']['units'])
         if not update:
             filename = 'lr' + \
-                str(self.dqn_config['learning_rate']).replace('.', '_') + \
-                '-g' + str(self.dqn_config['gamma']).replace('.', '_') + \
+                str(self.architecture_config['learning_rate']).replace('.', '_') + \
+                '-g' + str(self.architecture_config['gamma']).replace('.', '_') + \
                 model + '.pdf'
         else:
             filename = 'lr' + \
-                str(self.dqn_config['learning_rate']).replace('.', '_') + \
-                '-g' + str(self.dqn_config['gamma']).replace('.', '_') + \
+                str(self.architecture_config['learning_rate']).replace('.', '_') + \
+                '-g' + str(self.architecture_config['gamma']).replace('.', '_') + \
                 model + '_updated.pdf'
         self.plot_filename = filename
         plt.savefig(os.path.join(self.src_filepath, filename))
