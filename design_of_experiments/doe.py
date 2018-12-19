@@ -5,11 +5,12 @@ Created on December 14, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.1
+@version: 1.2.2
 
 #############################################################################################
 
 History:
+- v1.2.2: update output
 - v1.2.1: save experiment yaml
 - v1.2.0: save results
 - v1.1.0: add class
@@ -34,6 +35,7 @@ import os
 sys.path.extend([os.path.split(sys.path[0])[0]])
 ############################
 from environment.fruit_collection_train import FruitCollectionTrain
+from architectures.misc import Font
 
 DOE_YAML = 'doe.yaml'
 OUTPUT_YAML = 'experiments.yaml'
@@ -102,28 +104,40 @@ class RunDesignOfExperiments:
         """
         run the experiments
         """
-        return
         global_time = time.time()
         for ex_number, experiment in self.experiments.items():
             start_time = time.time()
             architecture = experiment['architecture']
-            # fct = FruitCollectionTrain(warmstart=False, 
-            #                             simple=experiment['simple'], 
-            #                             render=False, 
-            #                             testing=False, 
-            #                             mode='mini', 
-            #                             architecture=architecture, 
-            #                             doe_params=experiment)
-            print(('–' * 100 + '\n') * 2)
+            fct = FruitCollectionTrain(warmstart=False, 
+                                        simple=experiment['simple'], 
+                                        render=False, 
+                                        testing=False, 
+                                        mode='mini', 
+                                        architecture=architecture, 
+                                        doe_params=experiment)
+            print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
+            print(Font.yellow + '>>> Experiment: {}/{}'.format(ex_number, self.doe.how_many_possibilities()) + Font.end)
+            for key, value in experiment.items():
+                print(Font.yellow + '-' + str(key) + ' : '  + str(value) + Font.end)
+            print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
+            if architecture.lower() == 'dqn':
+                fct.main_dqn()
+            elif architecture.lower() == 'a3c':
+                fct.main_a3c()
+            elif architecture.lower() == 'hra':
+                fct.main_hra()
+            else:
+                raise ValueError('Incorrect architecture defined')
+            print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
             self.save_results(architecture=architecture, 
                               experiment_number=ex_number, 
                               experiment_dict=experiment)
             time.sleep(1)
-            print('>>> Time for experiment: {:.3f} min'.format((time.time() - start_time)/60))
-            print(('–' * 100 + '\n') * 2)
-        print(('–' * 100 + '\n') * 2)
+            print(Font.yellow + '>>> Time for experiment: {:.3f} min'.format((time.time() - start_time)/60) + Font.end)
+            print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
+        print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
         print('>>> Overall time for experiments: {:.3f} min'.format((time.time() - global_time)/60))
-        print(('–' * 100 + '\n') * 2)
+        print(Font.red + ('–' * 100 + '\n') * 2 + Font.end)
 
     def save_results(self, architecture: str=None, 
                      experiment_number: int=None, 
