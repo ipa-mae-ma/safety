@@ -10,6 +10,12 @@
 ### HRA
 [Hybrid Reward Architecture](http://arxiv.org/abs/1706.04208)
 
+Paper HRA architecture using Mnih architecutre from [Playing atari with deep reinforcement learning](https://arxiv.org/pdf/1312.5602.pdf).
+![NeuralNet](badges/lr0_001-g0_99-u25_HRA_NN.jpg)
+
+Paper HRA solutio for the Fruit Game using a tabular representation.
+![Tabular](badges/lr0_001-g0_99-u25_HRA_tab.jpg)
+
 ### A3C
 [Asynchronous Advantage Actor Critic](http://arxiv.org/abs/1602.01783) (A3C)
 
@@ -21,10 +27,10 @@
 ![DQN](badges/DQN_game.gif)
 
 Paper DQN network architecture:
-![Conv2D](badges/lr2_5e-05-g0_85Conv2D.jpg)
+![Conv2D](badges/lr2_5e-05-g0_85Conv2D_DQN.jpg)
 
 Simplified network architecture:
-![Simple](badges/lr2_5e-05-g0_85-u250.jpg)
+![Simple](badges/lr2_5e-05-g0_85-u250_DQN.jpg)
 
 ## Fruit Game
 [Fruit game](https://github.com/Maluuba/hra) from Maluuba will be used to benchmark the different architectures.
