@@ -31,16 +31,16 @@ class DQNExperiment(object):
     def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         self.do_episodes()
 
-        if is_testing:
-            eval_scores, eval_steps = self.do_episodes(number=eps_per_test, is_learning=False)
-            self.eval_steps.append(eval_steps)
-            self.eval_scores.append(eval_scores)
-            plot_and_write(plot_dict={'steps': self.eval_steps}, loc=self.folder_name + "/steps",
-                            x_label="Episodes", y_label="Steps", title="", kind='line', legend=True)
-            plot_and_write(plot_dict={'scores': self.eval_scores}, loc=self.folder_name + "/scores",
-                            x_label="Episodes", y_label="Scores", title="", kind='line', legend=True)
-            self.ai.dump_network(weights_file_path=self.folder_name + '/q_network_weights.h5',
-                                    overwrite=True)
+        # if is_testing:
+        #     eval_scores, eval_steps = self.do_episodes(number=eps_per_test, is_learning=False)
+        #     self.eval_steps.append(eval_steps)
+        #     self.eval_scores.append(eval_scores)
+        #     plot_and_write(plot_dict={'steps': self.eval_steps}, loc=self.folder_name + "/steps",
+        #                     x_label="Episodes", y_label="Steps", title="", kind='line', legend=True)
+        #     plot_and_write(plot_dict={'scores': self.eval_scores}, loc=self.folder_name + "/scores",
+        #                     x_label="Episodes", y_label="Scores", title="", kind='line', legend=True)
+        #     self.ai.dump_network(weights_file_path=self.folder_name + '/q_network_weights.h5',
+        #                             overwrite=True)
 
     def do_episodes(self, number=1, is_learning=True):
         scores = []
@@ -49,7 +49,8 @@ class DQNExperiment(object):
         total_eps = 10
         rewards = []
         step_counter = 0
-        while self.episode_num < total_eps:
+        for epoch in range(total_eps):
+        # while self.episode_num <= total_eps:
             for episode in range(100):
                 # print(Font.yellow + Font.bold + 'Training ... ' + str(episode) + '/' + str(100) + Font.end,
                 #       end='\n')
@@ -89,12 +90,12 @@ class DQNExperiment(object):
                             yaml.dump(rewards, f)
                         term = True
                         print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
-                                format(episode, 100, self.episode_num,
+                                format(episode, 100, epoch,
                                         total_eps, rew, self.ai.epsilon, step_counter))
                         break
                 scores.append(self.score_agent)
                 steps.append(self.last_episode_steps)
-            self.episode_num += 1
+            # self.episode_num += 1
 
 
     def _step(self, evaluate=False):
@@ -105,7 +106,8 @@ class DQNExperiment(object):
         if new_obs.ndim == 1 and len(self.env.state_shape) == 2:
             new_obs = new_obs.reshape(self.env.state_shape)
         if not evaluate:
-            self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward_channels, t=game_over)
+            # self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward_channels, t=game_over)
+            self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward, t=game_over)
             self.total_training_steps += 1
         if new_obs.ndim == 1 and len(self.env.state_shape) == 2:
             new_obs = new_obs.reshape(self.env.state_shape)

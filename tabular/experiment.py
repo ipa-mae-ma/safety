@@ -106,6 +106,9 @@ class SoCExperiment(object):
                     _, r_env, self.episode_done, info = self.env.step(action)
                     if self.use_gvf:
                         s2 = [self.env.player_pos_y, self.env.player_pos_x]
+                        # for target in self.env.targets:
+                        #     if target['colour'] == (255, 0, 0):
+                        #         s2 += target['location']
                         if is_learning:
                             # Hint: ALL gvf agents learn in parallel at each transition (regardless of player's position)
                             for gvf_idx, gvf_goal in enumerate(self.env.possible_fruits):
@@ -149,6 +152,9 @@ class SoCExperiment(object):
                         self._anneal_alpha()
                     if self.total_learning_steps % self.epoch_size == 0:
                         self.eval_flag = True
+
+                    if info['ghost'] is not None:
+                        self.episode_done = True
 
                     if self.episode_done or step >= (steps_per_episode - 1):
                         loss_array = np.append(loss_array, np.array([[step_counter, 0, np.mean(q_values)]]), axis=0)
@@ -260,6 +266,8 @@ class SoCExperiment(object):
             self._anneal_alpha()
         if self.total_learning_steps % self.epoch_size == 0:
             self.eval_flag = True
+        if info['ghost'] is not None:
+            self.episode_done = True
         return r_env
 
     def _anneal_eps(self):

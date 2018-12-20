@@ -15,14 +15,20 @@ class AI(object):
                  learning_rate=0.00025, epsilon=0.05, final_epsilon=0.05, test_epsilon=0.0,
                  minibatch_size=32, replay_max_size=100, update_freq=50, learning_frequency=1,
                  num_units=250, remove_features=False, use_mean=False, use_hra=True, rng=None,
-                 decay_start=1, decay_steps=10000):
+                 decay_start=1, decay_steps=10000, mode='mini'):
 
         self.decay_start = decay_start
         self.decay_steps = decay_steps
-        
+        self.mode = mode
+
         self.rng = rng
         self.history_len = history_len
-        self.state_shape = [1] + state_shape
+        if mode.lower() == 'mini':
+            self.state_shape = [1] + state_shape
+        elif mode.lower() == 'small':
+            self.state_shape = [1] + state_shape
+        else:
+            raise ValueError('mode must be either "mini" or "small"')
         self.nb_actions = nb_actions
         self.action_dim = action_dim
         self.reward_dim = reward_dim

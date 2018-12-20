@@ -23,6 +23,7 @@ def soc_agent(params):
     env = FruitCollectionMini(is_ghost=True, rendering=False, game_length=300)
     for mc_count in range(params['nb_experiments']):
         ai_list = []
+        params['use_gvf'] = True
         if not params['use_gvf']:
             for _ in range(env.nb_targets):
                 fruit_ai = AI(nb_actions=env.nb_actions, init_q=params['init_q'], gamma=params['gamma'],
@@ -48,7 +49,7 @@ def soc_agent(params):
 
 def demo_soc(params, nb_episodes, rendering_sleep, saving):
     rng = np.random.RandomState(1234)
-    env = FruitCollectionMini(rendering=True, is_ghost=False, lives=1, game_length=300, image_saving=saving, rng=rng)
+    env = FruitCollectionMini(rendering=True, is_ghost=True, lives=1, game_length=300, image_saving=saving, rng=rng)
     i = 0
     while os.path.exists(os.getcwd() + params['folder_location'] + params['folder_name'] + str(i)):
         i += 1

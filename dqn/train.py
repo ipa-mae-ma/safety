@@ -11,18 +11,25 @@ sys.path.extend([os.path.split(sys.path[0])[0]])
 
 from utils import Font, set_params
 from dqn.experiment import DQNExperiment
-from environment.fruit_collection import FruitCollectionMini
+from environment.fruit_collection import FruitCollectionMini, FruitCollectionSmall
 from dqn.ai import AI
 
 np.set_printoptions(suppress=True, linewidth=200, precision=2)
 floatX = 'float32'
 
 
-def worker(params):
+def worker(params, mode='mini'):
     np.random.seed(seed=params['random_seed'])
     random_state = np.random.RandomState(params['random_seed'])
-    env = FruitCollectionMini(rendering=True, game_length=300, state_mode='mini', is_ghost=True)
-    params['reward_dim'] = len(env.possible_fruits)
+    if mode.lower() == 'mini':
+        env = FruitCollectionMini(rendering=True, game_length=300, state_mode='1hot', is_ghost=True)
+        params['reward_dim'] = len(env.possible_fruits)
+    elif mode.lower() == 'small':
+        env = FruitCollectionSmall(rendering=True, game_length=1500, state_mode='multi-head', is_ghost=False)
+        params['reward_dim'] = env.nb_fruits
+    else:
+        raise ValueError('Incorrect mode.')
+
     for ex in range(params['nb_experiments']):
         print('\n')
         print(Font.bold + Font.red + '>>>>> Experiment ', ex, ' >>>>>' + Font.end)
@@ -36,7 +43,7 @@ def worker(params):
                 replay_max_size=params['replay_max_size'], update_freq=params['update_freq'],
                 learning_frequency=params['learning_frequency'], num_units=params['num_units'], rng=random_state,
                 remove_features=params['remove_features'], use_mean=params['use_mean'], use_hra=params['use_hra'],
-                decay_start=params['decay_start'], decay_steps=params['decay_steps'])
+                decay_start=params['decay_start'], decay_steps=params['decay_steps'], mode=mode)
 
         expt = DQNExperiment(env=env, ai=ai, episode_max_len=params['episode_max_len'],
                              history_len=params['history_len'], max_start_nullops=params['max_start_nullops'],
@@ -48,7 +55,7 @@ def worker(params):
             with open(expt.folder_name + '/config.yaml', 'w') as y:
                 yaml.safe_dump(params, y)  # saving params for future reference
             expt.do_training(total_eps=params['total_eps'], eps_per_epoch=params['eps_per_epoch'],
-                             eps_per_test=params['eps_per_test'], is_learning=True, is_testing=True)
+                             eps_per_test=params['eps_per_test'], is_learning=True, is_testing=False)
         else:
             raise NotImplementedError
 
