@@ -128,11 +128,8 @@ class FruitCollectionTrain(FruitCollection):
                             self.input_shape[1] * self.overblow_factor)  # (img_height, img_width)
         self.mc = misc
         
-        # TODO: delete return after tests
         if doe_params is not None:
-            self.params.update(doe_params)
-        # print(self.params)
-        # return
+            params.update(doe_params)
         
         if architecture.lower() == 'dqn':
             self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,

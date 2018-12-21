@@ -16,4 +16,4 @@ reward.yml
 model*.yml
 test*
 *backup*
-experiments.yaml
+experiment*.yaml
