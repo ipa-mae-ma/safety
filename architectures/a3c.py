@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 3.2.3
+@version: 3.2.4
 
 #############################################################################################
 
 History:
+- v3.2.4: output folder update
 - v3.2.3: update kernel_initializer, optimizer and neurons
 - v3.2.2: update output path
 - v3.2.1: update plots (again)
@@ -289,7 +290,7 @@ class A3CGlobal(Agent):
                 yaml.dump(dump_list, f)
             
             dump_array = np.array([steps_total, [0. for _ in range(len(loss_total))], loss_total]).transpose()
-            np.savetxt('training_log_A3C.csv', dump_array, delimiter=',')
+            np.savetxt(os.path.join('output', 'training_log_A3C.csv'), dump_array, delimiter=',')
 
             stop_signals = []
             for agent in agents:
