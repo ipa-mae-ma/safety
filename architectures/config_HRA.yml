@@ -8,6 +8,7 @@ update_frequency: 50
 ################################
 # RMSprop
 ################################
+optimizer: RMSProp
 kernel_initializer: he_uniform
 learning_rate: 0.005
 
@@ -24,6 +25,7 @@ eps_max_frame: 100000
 num_epochs: 5
 num_episodes: 100
 num_steps: 300
+neurons: 250
 
 random_seed: 1234
 action_dim: 4
@@ -37,8 +39,9 @@ mini:
   replay_memory_size: 10000
   update_frequency: 100
   ################################
-  # FIXME: use lower learning rate
+  optimizer: RMSProp
   kernel_initializer: he_uniform
+  # TODO: use lower learning rate
   learning_rate: 0.001
   ################################
   epsilon: 0.9
@@ -48,6 +51,7 @@ mini:
   num_epochs: 10
   num_episodes: 100
   num_steps: 300
+  neurons: 250
   random_seed: 12
   # random_seed: 1234
 
@@ -58,6 +62,7 @@ small:
   replay_memory_size: 10000
   update_frequency: 50
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.005
   ################################
@@ -68,4 +73,5 @@ small:
   num_epochs: 5
   num_episodes: 100
   num_steps: 300
+  neurons: 250
   random_seed: 1234

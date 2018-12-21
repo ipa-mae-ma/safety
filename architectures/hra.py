@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.2.3
+@version: 1.3.0
 
 #############################################################################################
 
 History:
+- v1.3.0: update with usage params
 - v1.2.3: update layers
 - v1.2.2: save loss
 - v1.2.1: use maluuba experience replay buffer
@@ -40,9 +41,10 @@ from architectures.agent import Agent
 class HybridRewardArchitecture(Agent):
     def __init__(self, env, params):
         self.env = env
-        self.input_shape = self.env.state_shape # [110] because 'state_mode=mini'
-        self.output_dim = self.env.nb_actions
-        self.n_heads = 10
+        self.input_shape = self.env.state_shape # [104] because 'state_mode=mini'
+        self.output_dim = self.env.nb_actions # 4
+        reward_dim = len(self.env.possible_fruits) + 1 # plus ghost
+        self.n_heads = reward_dim
 
         self.params = params
         self.gamma = self.params['gamma']
@@ -52,8 +54,8 @@ class HybridRewardArchitecture(Agent):
         self.epsilon_min = self.params['epsilon_min']
         self.replay_buffer = ReplayBuffer(max_size=self.params['replay_memory_size'])
         self.transitions = ExperienceReplay(max_size=self.params['replay_memory_size'], history_len=1, rng=self.rng,
-                                            state_shape=self.input_shape, action_dim=1, # action_dim is 1 because we only have 1 actino
-                                            reward_dim=len(self.env.possible_fruits))
+                                            state_shape=self.input_shape, action_dim=1, # action_dim is 1 because we only have 1 action
+                                            reward_dim=reward_dim)
         self.minibatch_size = self.params['minibatch_size']
         self.update_counter = 0
         self.update_freq = self.params['update_frequency']
@@ -78,11 +80,12 @@ class HybridRewardArchitecture(Agent):
             model (keras.model): model
         """
         input_shape = (1,) + tuple(self.input_shape)
+        kernel_init = self.params['kernel_initializer']
         layer_input = keras.Input(shape=input_shape, name='input')
         flatten = keras.layers.Flatten()(layer_input)
         # l_dense = keras.layers.Dense(250/self.n_heads, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
-        l_dense = keras.layers.Dense(25, activation='relu', kernel_initializer='he_uniform', name='dense')(flatten)
-        out = keras.layers.Dense(self.output_dim, activation='linear', kernel_initializer='he_uniform', name='out')(l_dense)
+        l_dense = keras.layers.Dense(self.params['neurons'], activation='relu', kernel_initializer=kernel_init, name='dense')(flatten)
+        out = keras.layers.Dense(self.output_dim, activation='linear', kernel_initializer=kernel_init, name='out')(l_dense)
         model = keras.Model(inputs=layer_input, outputs=out)
         # model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy'])
         return model
@@ -115,6 +118,12 @@ class HybridRewardArchitecture(Agent):
         losses = 0.0
         qs = []
         qs_ = []
+        if self.params['optimizer'] == 'RMSProp':
+            optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.9)
+        elif self.params['optimizer'] == 'Adam':
+            optimizer = keras.optimizers.Adam(lr=self.l_rate)
+        else:
+            raise ValueError('Bad value for optimizer')
         for i in range(len(self.models)):
             local_s = s
             local_s_ = s_
@@ -124,8 +133,6 @@ class HybridRewardArchitecture(Agent):
             # compute loss for reward of head i
             loss = self._compute_loss(qs[-1], a, r[:, i], t, qs_[-1])
             # rho and epsilon from Maluuba implementation
-            # TODO: use Adam optimizer instead of RMSprop
-            optimizer = keras.optimizers.RMSprop(lr=self.l_rate, rho=0.95, epsilon=1e-7)
             updates += optimizer.get_updates(params=self.models[i].trainable_weights, loss=loss)
             losses += loss
 
@@ -250,6 +257,10 @@ class HybridRewardArchitecture(Agent):
                     self.calc_eps_decay(step_counter=step_counter)
                     next_state, r, terminated, info = self.env.step(action)
                     reward_channels = info['head_reward']
+                    if info['ghost'] is not None:
+                        reward_channels = np.append(reward_channels, [-10.0])
+                    else:
+                        reward_channels = np.append(reward_channels, [0.0])
                     state_low = next_state[2, ...]
                     # self.replay_buffer.add(obs_t=state, act=action, rew=reward_channels, 
                     #                        obs_tp1=next_state, done=terminated)
