@@ -93,7 +93,7 @@ class FruitCollectionTrain(FruitCollection):
             params = self.params[mode]
             game_length = params['num_steps']
             if architecture.lower() == 'hra':
-                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=False, 
+                self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=True, 
                                                 image_saving=False, game_length=game_length, state_mode='mini')
             else:
                 self.env = FruitCollectionMini(rendering=render, lives=1, is_fruit=True, is_ghost=True, 
