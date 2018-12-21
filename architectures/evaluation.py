@@ -4,11 +4,12 @@ Created on October 19, 2018
 @author: mae-ma
 @attention: evaluation of the architectures
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.6.1
+@version: 1.6.2
 
 #############################################################################################
 
 History:
+- v1.6.2: get units from architecture config file
 - v1.6.1: update for HRA with tabular or deep implementation
 - v1.6.0: save path updated
 - v1.5.1: use architecture name from terminal
@@ -193,7 +194,8 @@ class Evaluation:
             model = '-u' + str(self.model['config']
                                ['layers'][2]['config']['units'])
         else:
-            model = '-u' + str(self.model['config'][0]['config']['units'])
+            # model = '-u' + str(self.model['config'][0]['config']['units'])
+            model = '-u' + str(self.architecture_config['neurons'])
         if not update:
             filename = 'lr' + \
                 str(self.architecture_config['learning_rate']).replace('.', '_') + \
