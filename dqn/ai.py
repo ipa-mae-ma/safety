@@ -175,6 +175,8 @@ class AI(object):
             states = np.expand_dims(states, axis=0)
         if len(states.shape) == 3:
             states = np.expand_dims(states, axis=1)
+        # if len(states.shape) == 4:
+        #     states = np.expand_dims(states, axis=1)
         return states
 
     @staticmethod

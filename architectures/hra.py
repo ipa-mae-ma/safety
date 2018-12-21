@@ -163,7 +163,7 @@ class HybridRewardArchitecture(Agent):
             q (np.array): q-values
         """
         state = self._reshape(state)
-        q = np.array(self.predict_qs([state[np.newaxis, ...]]))
+        q = np.array(self.predict_qs([state]))
         # sum over corresponding action for all models -> vertical
         q = np.sum(q, axis=0)
         # get argmax from array -> horizontal

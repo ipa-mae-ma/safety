@@ -26,7 +26,8 @@ class DQNExperiment(object):
         self.score_agent_window = np.zeros(score_window_size)
         self.steps_agent_window = np.zeros(score_window_size)
         self.replay_min_size = max(self.ai.minibatch_size, replay_min_size)
-        self.last_state = np.empty(tuple([self.history_len] + self.env.state_shape), dtype=np.uint8)
+        # self.last_state = np.empty(tuple([self.history_len] + self.env.state_shape), dtype=np.uint8)
+        self.last_state = np.empty((1, self.env.state_shape[0]), dtype=np.uint8)
 
     def do_training(self, total_eps=5000, eps_per_epoch=100, eps_per_test=100, is_learning=True, is_testing=True):
         self.do_episodes()
@@ -46,7 +47,7 @@ class DQNExperiment(object):
         scores = []
         steps = []
         loss_array = np.zeros((0, 3))
-        total_eps = 10
+        total_eps = 50
         rewards = []
         step_counter = 0
         for epoch in range(total_eps):
@@ -96,18 +97,29 @@ class DQNExperiment(object):
                 scores.append(self.score_agent)
                 steps.append(self.last_episode_steps)
             # self.episode_num += 1
-
+        return
 
     def _step(self, evaluate=False):
         self.last_episode_steps += 1
         action = self.ai.get_action(self.last_state, evaluate)
         new_obs, reward, game_over, info = self.env.step(action)
         reward_channels = info['head_reward']
+        if info['ghost'] is not None:
+            reward_channels = np.append(reward_channels, [-10.0])
+        else:
+            reward_channels = np.append(reward_channels, [0.0])
+        head_rew = np.zeros((10, 10), dtype=np.float32)
+        for target in self.env.targets:
+            x = target['location'][1]
+            y = target['location'][0]
+            head_rew[x, y] = target['reward'] if target['active'] is True else 0.0
+        head_rew = head_rew.flatten()
         if new_obs.ndim == 1 and len(self.env.state_shape) == 2:
             new_obs = new_obs.reshape(self.env.state_shape)
         if not evaluate:
-            # self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward_channels, t=game_over)
-            self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward, t=game_over)
+            self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward_channels, t=game_over)
+            # self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=reward, t=game_over)
+            # self.ai.transitions.add(s=self.last_state[-1].astype('float32'), a=action, r=head_rew, t=game_over)
             self.total_training_steps += 1
         if new_obs.ndim == 1 and len(self.env.state_shape) == 2:
             new_obs = new_obs.reshape(self.env.state_shape)
