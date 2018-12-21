@@ -5,11 +5,12 @@ Created on October 1, 2018
 @author: mae-ma
 @attention: architectures for the safety DRL package
 @contact: albus.marcel@gmail.com (Marcel Albus)
-@version: 1.3.0
+@version: 2.0.0
 
 #############################################################################################
 
 History:
+- v2.0.0: working hra
 - v1.3.0: update with usage params
 - v1.2.3: update layers
 - v1.2.2: save loss
@@ -261,10 +262,9 @@ class HybridRewardArchitecture(Agent):
                         reward_channels = np.append(reward_channels, [-10.0])
                     else:
                         reward_channels = np.append(reward_channels, [0.0])
-                    state_low = next_state[2, ...]
                     # self.replay_buffer.add(obs_t=state, act=action, rew=reward_channels, 
                     #                        obs_tp1=next_state, done=terminated)
-                    self.transitions.add(s=state, a=action, r=reward_channels, t=terminated)
+                    self.transitions.add(s=state.astype('float32'), a=action, r=reward_channels, t=terminated)
                     # learn every 4 steps
                     if step % 4 == 0:
                         loss = self.learn()
@@ -272,18 +272,18 @@ class HybridRewardArchitecture(Agent):
                             loss = 0.0
                         else:
                             loss = loss[0]
-                    loss_array = np.append(loss_array, np.array([[0, 0, loss]]), axis=0)
+                    loss_array = np.append(loss_array, np.array([[step_counter, 0, loss]]), axis=0)
                     if step % 100 == 0:
                         np.savetxt(os.path.join('output', 'training_log_HRA.csv'), loss_array, fmt='%.4f', delimiter=',')
+
+                    if info['ghost'] is not None:
+                        term = True
 
                     state = next_state
                     self.env.render()
                     step_counter += 1
-
-                    if step == self.num_steps - 1:
-                        terminated = True
                     rew += r
-                    if terminated is True:
+                    if terminated or step >= self.num_steps - 1:
                         print('\nepisode: {}/{} \nepoch: {}/{} \nscore: {} \neps: {:.3f} \nsum of steps: {}'.
                               format(episode, self.num_episodes, epoch,
                                      self.num_epochs, rew, self.epsilon, step_counter))
@@ -308,6 +308,8 @@ class HybridRewardArchitecture(Agent):
 
     @staticmethod
     def _reshape(states: np.array) -> np.array:
+        if len(states.shape) == 1:
+            states = np.expand_dims(states, axis=0)
         if len(states.shape) == 2:
             states = np.expand_dims(states, axis=0)
         if len(states.shape) == 3:

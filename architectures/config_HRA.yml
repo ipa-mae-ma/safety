@@ -35,9 +35,9 @@ num_units: 250
 mini:
   ################################
   minibatch_size: 32
-  gamma: 0.99
+  gamma: 0.85
   replay_memory_size: 10000
-  update_frequency: 100
+  update_frequency: 500
   ################################
   optimizer: RMSProp
   kernel_initializer: he_uniform
