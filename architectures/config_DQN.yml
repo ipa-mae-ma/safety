@@ -73,14 +73,14 @@ small:
   # replay buffer size
   # DQN size 1.0e6
   # HRA size: 10000
-  replay_memory_size: 20000
+  replay_memory_size: 50000
   # gamma from HRA: 0.85
   gamma: 0.85
   ################################
   optimizer: RMSProp
   kernel_initializer: he_uniform
-  learning_rate: 0.0005
   # lr from HRA: 0.0005
+  learning_rate: 0.000025
   gradient_momentum: 0.95
   squared_gradient_momentum: 0.95
   min_squared_gradient: 0.01
@@ -90,10 +90,10 @@ small:
   epsilon_min: 0.1
   eps_max_frame: 150000
   ################################
-  num_epochs: 5
+  num_epochs: 20
   num_episodes: 100
-  num_steps: 500
-  target_network_update_frequency: 500
+  num_steps: 1000
+  target_network_update_frequency: 1200
   neurons: 250
   random_seed: 1234
 
