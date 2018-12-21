@@ -22,7 +22,7 @@ class FruitCollection(object):
         self.is_ghost = is_ghost
         self.legal_actions = [0, 1, 2, 3]
         self.action_meanings = ['up', 'down', 'left', 'right']
-        self.reward_scheme = {'ghost': -10.0, 'fruit': +1.0, 'step': -0.0, 'wall': -0.0}
+        self.reward_scheme = {'ghost': -1.0, 'fruit': +1.0, 'step': -0.0, 'wall': -0.0}
         self.nb_actions = len(self.legal_actions)
         if rng is None:
             self.rng = np.random.RandomState(1234)
@@ -187,7 +187,8 @@ class FruitCollection(object):
                 caught_target = deepcopy([self.player_pos_y, self.player_pos_x])
                 caught_target_idx = k
                 target['active'] = False
-                target['location'] = [self.scr_w, self.scr_h]  # null value
+                # target['location'] = [self.scr_w, self.scr_h]  # null value
+                target['location'] = [None, None]  # null value
                 break
         check = []
         for target in self.targets:
@@ -247,8 +248,20 @@ class FruitCollection(object):
             raise ValueError('State-mode is not known.')
 
     def get_mini_state(self):
-        state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits)), dtype=np.int8)
-        state[self.player_pos_y * self.scr_h + self.player_pos_x] = 1
+        if self.is_ghost:
+            state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits) + self.scr_w * self.scr_h), dtype=np.int8)
+            state[self.player_pos_y * self.scr_h + self.player_pos_x] = 1
+            ghost_location = []
+            for target in self.targets:
+                if target['colour'] == RED and target['active']:
+                    ghost_location.append(target['location'])
+            for ghost in ghost_location:
+                off = self.scr_w * self.scr_h + len(self.possible_fruits)
+                # ghost y position
+                state[off + ghost[0] * self.scr_h + ghost[1]] = 1
+        else:
+            state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits)), dtype=np.int8)
+            state[self.player_pos_y * self.scr_h + self.player_pos_x] = 1
         for target in self.targets:
             if target['active'] and target['reward'] > 0:
                 offset = self.possible_fruits.index([target['location'][1], target['location'][0]])
@@ -496,8 +509,13 @@ class FruitCollectionMini(FruitCollection):
     def init_with_mode(self):
         # self.is_ghost = False
         self.is_fruit = True
-        self.nb_fruits = 5
-        self.possible_fruits = [[0, 0], [0, 9], [1, 2], [3, 6], [4, 4], [5, 7], [6, 2], [7, 7], [8, 8], [9, 0]]
+        if self.is_ghost:
+            self.nb_fruits = 1
+            self.possible_fruits = [[0, 0], [0, 9], [9, 0], [9, 9]]
+        else:
+            self.nb_fruits = 5
+            self.possible_fruits = [[0, 0], [0, 9], [1, 2], [3, 6], [4, 4], [5, 7], [6, 2], [7, 7], [8, 8], [9, 0]]
+        
         self.scr_w = 10
         self.scr_h = 10
         self.rendering_scale = 50
