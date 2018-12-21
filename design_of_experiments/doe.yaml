@@ -1,5 +1,4 @@
-architecture: [DQN, A3C]
-# architecture: [DQN, A3C, HRA]
+architecture: [DQN, A3C, HRA]
 num_epochs: [10, 20, 50]
 learning_rate: [0.001, 0.01, 0.1]
 # use complex or simple network
