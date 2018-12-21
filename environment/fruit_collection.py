@@ -249,7 +249,8 @@ class FruitCollection(object):
 
     def get_mini_state(self):
         if self.is_ghost:
-            state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits) + self.scr_w * self.scr_h), dtype=np.int8)
+            # state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits) + self.scr_w * self.scr_h), dtype=np.int8)
+            state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits)), dtype=np.int8)
             state[self.player_pos_y * self.scr_h + self.player_pos_x] = 1
             ghost_location = []
             for target in self.targets:
@@ -257,8 +258,8 @@ class FruitCollection(object):
                     ghost_location.append(target['location'])
             for ghost in ghost_location:
                 off = self.scr_w * self.scr_h + len(self.possible_fruits)
-                # ghost y position
-                state[off + ghost[0] * self.scr_h + ghost[1]] = 1
+                # state[off + ghost[0] * self.scr_h + ghost[1]] = 1
+                state[ghost[0] * self.scr_h + ghost[1]] = 1
         else:
             state = np.zeros((self.scr_w * self.scr_h + len(self.possible_fruits)), dtype=np.int8)
             state[self.player_pos_y * self.scr_h + self.player_pos_x] = 1
