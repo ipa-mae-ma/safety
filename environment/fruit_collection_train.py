@@ -133,7 +133,7 @@ class FruitCollectionTrain(FruitCollection):
         
         if architecture.lower() == 'dqn':
             self.dqn = DeepQNetwork(input_shape=self.input_shape, output_dim=self.env.nb_actions,
-                                    warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety', 
+                                    warmstart=warmstart, warmstart_path='/home/mae-ma/git/safety/output', 
                                     simple_dqn=self.simple, params=params)
         elif architecture.lower() == 'a3c':
             self.a3c = A3CGlobal(input_shape=self.input_shape,
@@ -174,7 +174,7 @@ class FruitCollectionTrain(FruitCollection):
             '>>> Training: {}/{} --- {: .1f} steps/second' + misc.Font.end
         print(text.format(step_counter, self.dqn.num_steps, 1/mean_v), end='', flush=True)
 
-    def main_dqn(self, verbose=False):
+    def main_dqn(self):
         reward = []
         step_counter = 0
         q_val = 0
@@ -234,24 +234,9 @@ class FruitCollectionTrain(FruitCollection):
                         # np.savetxt('training_log_DQN.csv', loss, fmt='%.4f', delimiter=',')
                         np.savetxt(os.path.join('output', 'q_val_DQN.csv'), Q_val, fmt=' % .4f', delimiter=', ')
 
-                    if verbose:
-                        print("\033[2J\033[H\033[2J", end="")
-                        print()
-                        print('pos: ', self.env.player_pos_x, self.env.player_pos_y)
-                        print('reward: ', r)
-                        print('state:')
-                        print(state_low)
-                        print('─' * 30)
-                        print('─' * 30)
-
                     # update target model
                     if step_counter % self.dqn.params['target_network_update_frequency'] == 0:
                         self.dqn.update_target_model(soft=False, beta=0.8)
-                        if verbose:
-                            print('\n' + '–' * 50)
-                            print('update after',
-                                  self.dqn.params['target_network_update_frequency'], 'steps')
-                            print('–' * 50)
 
                     if step == self.dqn.num_steps - 1:
                         terminated = True
@@ -289,7 +274,7 @@ def run(warmstart, simple, render, testing, mode, architecture):
                                 mode=mode, architecture=architecture)
     
     if architecture.lower() == 'dqn':
-        fct.main_dqn(verbose=False)
+        fct.main_dqn()
     elif architecture.lower() == 'a3c':
         fct.main_a3c()
     elif architecture.lower() == 'hra':
