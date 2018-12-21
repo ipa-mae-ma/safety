@@ -264,6 +264,7 @@ class HybridRewardArchitecture(Agent):
                         reward_channels = np.append(reward_channels, [0.0])
                     # self.replay_buffer.add(obs_t=state, act=action, rew=reward_channels, 
                     #                        obs_tp1=next_state, done=terminated)
+                    # astype('float32') is urgently necessary!
                     self.transitions.add(s=state.astype('float32'), a=action, r=reward_channels, t=terminated)
                     # learn every 4 steps
                     if step % 4 == 0:
