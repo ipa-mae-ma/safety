@@ -48,8 +48,8 @@ mini:
   gamma: 0.85
   ################################
   optimizer: RMSProp
-  kernel_initializer: he_uniform
-  learning_rate: 0.000025
+  kernel_initializer: glorot_uniform
+  learning_rate: 0.00025
   # lr from HRA: 0.0005
   gradient_momentum: 0.95
   squared_gradient_momentum: 0.95
@@ -108,6 +108,7 @@ aperture:
   # gamma from HRA: 0.85
   gamma: 0.85
   ################################
+  optimizer: RMSProp
   kernel_initializer: he_uniform
   learning_rate: 0.00025
   # lr from HRA: 0.0005
