@@ -169,7 +169,7 @@ class DeepQNetwork:
             # model.add(keras.layers.Dense(100, activation='relu', kernel_initializer='he_uniform'))
             # output layer
             model.add(keras.layers.Dense(self.output_dim,
-                                            activation='linear', kernel_initializer=kernel_init))
+                                            activation='relu', kernel_initializer=kernel_init))
             model.summary()
             # for evaluation purpose
             self.model_yaml = model.to_yaml()
