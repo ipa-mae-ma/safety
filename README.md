@@ -10,6 +10,9 @@
 ### HRA
 [Hybrid Reward Architecture](http://arxiv.org/abs/1706.04208)
 
+![HRA](badges/HRA_T_game.gif)
+![HRA](badges/HRA_T_game_ghost2.gif)
+
 Paper HRA architecture using Mnih architecutre from [Playing atari with deep reinforcement learning](https://arxiv.org/pdf/1312.5602.pdf).
 ![NeuralNet](badges/lr0_001-g0_99-u25_HRA_NN.jpg)
 
@@ -20,11 +23,13 @@ Paper HRA solutio for the Fruit Game using a tabular representation.
 [Asynchronous Advantage Actor Critic](http://arxiv.org/abs/1602.01783) (A3C)
 
 ![A3C](badges/A3C_game.gif)
+![A3C](badges/A3C_game_ghost2.gif)
 
 ### DQN
 [Deep Q-Networks](https://www.nature.com/articles/nature14236.pdf)
 
 ![DQN](badges/DQN_game.gif)
+![DQN](badges/DQN_game_ghost2.gif)
 
 Paper DQN network architecture:
 ![Conv2D](badges/lr2_5e-05-g0_85Conv2D_DQN.jpg)
@@ -46,42 +51,6 @@ Workings rewards:
 | +10.0| - | 0.0 | mini | no noramlization for frame input |
 | +100.0| - | 0.0 | mini | no noramlization for frame input |
 
-# TODO list
-
-## CI
-- [x] setup `travis` test for all architectures
-  - [x] update `.travis.yml`
-  - [x] `pytest`: easy to use
-
-- [x] gym environments for architectures:
-  - [x] frozen lake
-  - [x] crawler
-
-
-## Architectures
-- define functions:
-  - [x] `value iteration`
-  - [x] `policy iteration`
-  - [x] `q-learning`-function
-  - [x] `deep q`-function
-  - [x] `visualization`-function
-    - `matplotlib`?
-
-### DQN
-
-- [x] simple DQN implementation
-- [x] paper DQN implementation by 'Mnih'
-- [x] use `pickle` to save weights
-  - [x] include `overwrite` parameter
-- [x] use `results` folder
-- [x] implement `warmstart` functionality
-- [x] flag for simple or complex DQN network
-
-- hyper parameters:
-  - learning rate
-  - gamma
-  - update frequenzy of target network
-  - dense layers to use
 
 ## Interaction
 all environment information from `fruit_collection_train.py`: API to interact with architectures.
