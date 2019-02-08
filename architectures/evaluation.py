@@ -194,8 +194,10 @@ class Evaluation:
             model = '-u' + str(self.model['config']
                                ['layers'][2]['config']['units'])
         else:
-            # model = '-u' + str(self.model['config'][0]['config']['units'])
-            model = '-u' + str(self.architecture_config['neurons'])
+            try:
+                model = '-u' + str(self.model['config'][0]['config']['units'])
+            except:
+                model = '-u' + str(self.architecture_config['neurons'])
         if not update:
             filename = 'lr' + \
                 str(self.architecture_config['learning_rate']).replace('.', '_') + \
@@ -214,7 +216,7 @@ class Evaluation:
 
     def plot_q_vals(self):
         csv_path = os.path.join(
-            os.getcwd(), 'q_val_' + self.architecture + '.csv')
+            os.path.join(os.getcwd(), 'output'), 'q_val_' + self.architecture + '.csv')
         self.csv = np.genfromtxt(csv_path, delimiter=',')
         smoothed = smooth(self.csv[:], 1051)
         fig, ax1 = plt.subplots(1, 1, figsize=(12, 12))
@@ -228,10 +230,10 @@ class Evaluation:
         plt.grid()
         plt.show()
 
-    def update_plot(self, filepath: str):
+    def update_plot(self, filepath: str, show: bool=False):
         self.src_filepath = filepath
         self.load_files_update(filepath=filepath)
-        self.plot(update=True)
+        self.plot(update=True, show=show)
 
     def save_all(self):
         self.plot(show=False)
@@ -265,8 +267,10 @@ def main(plot, save, mode, qvalue, architecture):
     print('src: ', ev.src_filepath)
     if plot:
         ev.plot(show=True)
-        # ev.update_plot(
-        #    '/home/mae-ma/git/safety/results/2018_10_24-11_54___lr2_5e-05-g0_85-u250.pdf')
+        # update_dir_list = sorted([x[0] for x in os.walk('/home/mae-ma/git/safety/results/')][1:])
+        # for directory in update_dir_list:
+        #     ev.update_plot(directory, show=False)
+        # ev.update_plot('/home/mae-ma/git/safety/results/', show=False)
     if qvalue:
         ev.plot_q_vals()
     if save:
