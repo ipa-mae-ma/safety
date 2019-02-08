@@ -335,7 +335,7 @@ class A3CGlobal(Agent):
                 # legend2right, = ax2right.plot(range(len(steps_smooth)), steps_smooth, 'b--', label='steps')
                 legend2right, = ax2right.plot(steps_total, steps_smooth[:-10], 'b--', label='steps')
             
-            ax2left.set_xlabel('episodes', fontsize=35)
+            ax2left.set_xlabel('steps', fontsize=35)
             ax2left.set_ylabel('scores', fontsize=35)
             ax2right.set_ylabel('steps per episode', fontsize=35)
             ax2left.grid()
@@ -427,7 +427,7 @@ class A3CAgent(threading.Thread):
                         
                     rews = 0
                     for step in range(self.num_steps):
-                        time.sleep(0.001)
+                        time.sleep(0.05)
                         action, q_vals = self.act(state)
                         obs, reward, terminal, info = self.env.step(action)
                         self.calc_eps_decay(step_counter=step_counter)
